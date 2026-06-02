@@ -1,100 +1,18 @@
-# Daily Maze — Design & Go Learning Plan
+# Daily Maze — Go Learning Syllabus
 
-A daily, shared-maze exploration game. Once a day a window opens for everyone at the
-same time. You drop into one procedurally generated maze — identical for every player —
-and explore it blind, revealing the map tile by tile before your time runs out. Your
-charted map _is_ your score. Tomorrow, a new maze.
+**Version:** v1 · **Last updated:** 2026-06-02
 
-Think _The Maze Runner_: one shared maze nobody fully knows, runners mapping it during a
-fixed window, the map as a collective survival project — not a twitchy action game.
+A high-level **syllabus**: the map of **Go concepts** this project covers while building it,
+and roughly how deep. The game itself — the pitch, why this project, and the v1 design —
+lives in [idea.md](idea.md). This is not a step-by-step build manual.
 
-This document is two things at once: the **design** of the game, and a map of the **Go
-concepts** we intend to cover while building it (and roughly how deep). It is not a
-step-by-step build manual.
-
----
-
-## Why this project, and how I got here
-
-The goal was never the game itself — it's to learn Go. The game is the vehicle. The path
-here was deliberate, and worth recording because it explains the shape of the design:
-
-1. **Started from what Go is for.** Go's real strength is _coordinating many simultaneous
-   actors over a network into one consistent, live shared state — cheaply and simply._
-   Not raw traffic — _coordination of interacting actors around shared state._ The project
-   should point straight at that.
-2. **Filtered by motivation.** It had to be something fun and showable, public, usable by
-   strangers, and useful from the very first players — not a two-sided market or a crowd
-   that has to exist before it works.
-3. **Followed the pull.** Across a long exploration (watch-party sync, P2P, distributed
-   compute, distributed AI) the recurring instinct was _the power of the crowd_ and
-   _territoriality_ — r/place kept coming back. The lesson learned along the way: crowd-
-   _compute_ and "public product" are in tension, but crowd-_coordination around shared
-   state_ is exactly the buildable, public, Go-shaped sweet spot.
-4. **From r/place to a maze.** Tried pushing r/place's mechanics (shared surface, tiny
-   atomic actions, cooldown, contested/persistent) into other mediums (sound, text, music)
-   and themes (education, sports). The realization: a **maze** beats a flat canvas because
-   structure has _consequence_ — a wall blocks, a path enables — so "claim space" becomes
-   "shape space," which is richer while staying just as simple to render.
-5. **Maze Runner reframed the social layer.** Thinking about _The Maze Runner_ surfaced the
-   key insight: the magic was **collective cartography** — runners pooling partial maps for
-   a shared goal — not competition. That's what pointed away from a competitive leaderboard
-   and toward shared/collective knowledge.
-6. **Solved the loneliness problem.** Exploring a maze alone felt lonely. The fix is
-   _collective presence + a shared goal_, **not** a competitive live ranking — a ranking
-   makes you feel watched and behind and corrodes patient exploration. (See the design's
-   anti-loneliness layer.)
-7. **Shaped by constraints.** Simple visuals (no 3D — flat grid, fog, cells), one mechanic
-   anyone grasps in five seconds (Wordle-simple), and a daily ritual (BeReal-style
-   synchronized window) so there's a reason to show up at a moment.
-8. **Kept it honest about scope.** The full vision (duels, parties, real-time seeing each
-   other, combat, treasure) is _five projects in one_. v1 deliberately strips to the core
-   so it's finishable by a Go beginner — the rest is v2+.
-
-(The real path was messier than this tidy list — lots of dead ends and a fair amount of
-spiralling before it narrowed. The list is the _logic_ that survived, not a claim that it
-was linear.)
-
-The through-line: **a daily shared-maze run, explored blind, scored by how much you
-chart** — territorial/collective soul, dead-simple to render, a daily ritual, and dead-
-center in Go's wheelhouse.
-
----
-
-## The design (v1)
-
-The smallest version that is still a real, novel, demoable game:
-
-- **One maze per day**, procedurally generated, identical for every player.
-- **A synchronized daily window** — it opens for everyone at the same time and closes for
-  everyone at the same time. Bounded session, no grinding, no advantage for having more
-  hours to burn.
-- **Blind exploration** — you reveal the maze tile by tile (fog of war). Movement is free
-  and _local_: in v1 players do **not** see each other, so there are no positions to sync
-  between players — each person just explores the shared layout. (This is what keeps v1
-  easy; see "the hard idea" below.)
-- **Cartography is the score** — your value is how much of the maze you charted. A
-  leaderboard compares everyone on _today's_ maze.
-- **Anti-loneliness layer (keep both for now):**
-  - _Light:_ a live "N runners exploring now" presence indicator + a **collective progress
-    bar** ("the group has charted 47% of today's maze").
-  - _Richer:_ a **shared but fuzzy/lagged collective map** — your own map is crisp and
-    live; the collective map is blurry, delayed, or only shows _that_ an area was found,
-    not its detail. The tension between your sharp personal knowledge and the blurry
-    collective picture is the point — and it stops the crowd from trivially charting the
-    whole maze on the first day.
-  - Design note: the fix for loneliness is **collective presence + a shared goal**, _not_
-    a competitive live ranking — a ranking makes you feel watched and behind, and it
-    corrodes the patient-cartography feel by rewarding speed over care.
-
-### Optional / later (called out, not in v1)
-
-- **Maze Runner mechanics** — _closing walls_ (a threat that seals the maze as the window
-  ends) and _nightly reconfiguration_ (the maze reshapes between days). Great for tension
-  and theme; add once the core loop works.
-- **Social layer** — seeing each other, parties (pooling maps), duels with map-stakes. This
-  is where real-time netcode difficulty lives; strictly v2+.
-- **Seasons** — periodic wipes, fresh leaderboard, prizes/cosmetics.
+> **Scope note (deliberate):** ordering/sequencing (what to build first, what unlocks
+> what), proof-of-learning checkpoints ("you understand X when you can do Y without looking
+> it up"), and the anti-shallowness discipline for the _Light_ topics are intentionally
+> **out of scope here** — they'll live in separate planning docs (e.g. a build-order /
+> learning-path doc) created later, as implementation and planning actually begin. This
+> file stays the high-level syllabus; the sequencing and checkpoints are downstream
+> artifacts, not gaps.
 
 ---
 
@@ -112,8 +30,8 @@ touched once, deliberately.
 ## Go's practical core — and how this project covers it
 
 This is the most important section: Go's _fundamentals_ (structs, errors, etc.) matter,
-but they exist in every language. The reason to learn **Go specifically** is its practical
-core:
+but they exist in every language. My working thesis for why to learn **Go specifically**
+(a lens this project tests, not a canonical definition) is its practical core:
 
 > **Coordinating many simultaneous actors over a network into one consistent, live shared
 > state — cheaply and simply.**
@@ -146,13 +64,28 @@ practical core this project covers only partially.)
 
 - **Structs & data modeling** _(Core)_ — model the maze, cells, walls, a player's revealed
   map, a daily run, the session. The foundation of how Go represents data.
+- **Struct embedding & composition** _(Core)_ — Go's "composition over inheritance"
+  worldview, the biggest type-system shift from Java. Canonical home: embed `sync.RWMutex`
+  into the state struct it protects (`type Hub struct { sync.RWMutex; ... }`) so embedding
+  and locking are learned together; also any shared behavior across maze/run/session types.
+- **Zero values** _(Solid)_ — the idiom (constructor-free usable structs, a `nil` slice you
+  can still `append` to, reading a `nil` map) _and_ the gotcha (writing to a `nil` map
+  panics). Lean on zero values instead of writing constructors out of Java habit.
 - **Methods & receivers** _(Solid)_ — behavior on those structs; value-vs-pointer receivers.
-- **Error handling** _(Core)_ — the `if err != nil` rhythm everywhere; wrapping, when to
-  return vs. handle.
+- **Pointers** _(Solid)_ — pointer-vs-value semantics for structs in maps/slices (when
+  you're copying vs. sharing) and `nil`-pointer panics; the beginner traps the receiver
+  rule alone doesn't cover.
+- **Typed constants & `iota`** _(Solid)_ — Go's enum idiom: a defined type + `iota` for
+  directions (N/E/S/W), cell states (wall/path/fog/charted), and WebSocket message types.
+  Pair with a `String()` method (`fmt.Stringer`) — a tiny, high-value interface lesson.
+- **Error handling** _(Core)_ — the `if err != nil` rhythm everywhere; wrapping with `%w`,
+  sentinel errors (e.g. a "window closed" sentinel) and `errors.Is`/`errors.As`, plus
+  custom error types; when to return vs. handle.
 - **Slices, maps & basic types** _(Core)_ — the grid, revealed-cell sets, per-player state.
 - **Interfaces** _(Light-Solid, and it fits naturally here)_ — a pluggable `MazeGenerator`
-  (different algorithms) and/or a `Threat`/scoring abstraction. Unlike some projects, this
-  one has an honest place for interfaces rather than a contrived one.
+  (different algorithms) and/or a `Threat`/scoring abstraction, plus `fmt.Stringer` on the
+  enum types above. Unlike some projects, this one has an honest place for interfaces
+  rather than a contrived one.
 - **Generics** _(Light - deliberate practice)_ — the design doesn't strictly need them; a
   type-safe broadcast helper or a generic set type is a fine place to meet the syntax once,
   named honestly as the exercise it is.
@@ -165,12 +98,16 @@ practical core this project covers only partially.)
 - **Goroutines** _(Core)_ — per-connection read/write; the daily-window timer; the threat
   ticker. Make every goroutine exit cleanly (no leaks).
 - **Channels** _(Core)_ — the session "hub"/actor pattern: one goroutine owns shared maze
-  and progress state and receives commands (move, reveal, join, leave).
+  and progress state and receives commands (move, reveal, join, leave). **This is the
+  idiomatic Go answer** (share by communicating) and the one to reach for first — deliberately
+  build the shared state _this_ way as well as the lock-guarded way below, and compare which
+  is cleaner. Resist the Java instinct to default to mutexes.
 - **`select`** _(Core)_ — wait on "a player action OR the window-close tick OR shutdown."
-- **`sync` primitives** _(Core - heavier here than most projects)_ — the **collective
-  progress counter** under many simultaneous writers (`atomic`), and the shared collective
-  map (`RWMutex` / sharding). This is the meaty correctness lesson, and it's central, not
-  incidental. Also `WaitGroup` for batch cleanup on window close.
+- **`sync` primitives** _(Core)_ — the **collective progress counter** under many
+  simultaneous writers (`atomic`), and the shared collective map (`RWMutex` / sharding).
+  The meaty correctness lesson — but treat it as the _alternative_ to the channel-owned hub
+  above, built to feel the trade-off, not as the default. Also `WaitGroup` for batch cleanup
+  on window close.
 - **Channel idioms** _(Solid)_ — closing channels and the `v, ok := <-ch` pattern; you'll
   hit this in week one.
 - **`context` package** _(Core)_ — cancellation/cleanup when a run ends, the daily window
@@ -199,9 +136,10 @@ practical core this project covers only partially.)
 
 - **`go mod` / `go build` / `go run` / `gofmt` / `go vet`** _(Solid)_ — modules, the
   everyday loop, the single-binary payoff, and Go's formatting/linting culture.
-- **Testing** _(Solid — and partly the hard part)_ — testing the concurrent shared state
-  under simultaneous writers with `go test -race`, plus unit-testing the maze generator
-  (solvable? deterministic from a seed?). Not an afterthought.
+- **Testing** _(Solid — and partly the hard part)_ — table-driven tests with `t.Run`
+  subtests (Go's idiomatic style) for the maze generator (solvable? deterministic from a
+  seed?), plus testing the concurrent shared state under simultaneous writers with
+  `go test -race`. Not an afterthought.
 
 ---
 
@@ -252,13 +190,11 @@ are pure coordination, which is exactly what Go is for.
 
 ---
 
-## Scope & stack notes
+## Changelog
 
-- **What "done" looks like (v1):** a daily maze everyone can explore blind in a shared
-  window, fog-of-war revealing, % charted as score, a leaderboard, and the anti-loneliness
-  layer (presence + collective progress, plus the fuzzy shared map). No duels, parties, or
-  seeing each other. That's the finish line — resist scope creep until it plays.
-- **Stack split:** Go owns the live layer (sessions, shared state, the window, broadcast);
-  Postgres/Supabase owns durable state (seed, saved maps, leaderboard). The browser
-  frontend (rendering grid/fog/maps) is real work but out of scope _here_. Deploying it to
-  a URL so strangers can play is a real goal, not an afterthought.
+- **v1 — 2026-06-02** — Initial syllabus, extracted from the original `overview.md`. Kept
+  the Go learning plan (goal, practical core, fundamentals, concurrency, stdlib, tooling,
+  concepts-left-out, honest limitations, the one hard idea) and the downstream-docs scope
+  note; the game pitch and design moved to [idea.md](idea.md). Carries the prior content's
+  additions: embedding/zero-values/pointers/`iota`+`Stringer` fundamentals, CSP-first
+  concurrency framing, table-driven testing, and softened "essence of Go" claims.
