@@ -1,6 +1,6 @@
 # Daily Maze — Design
 
-**Version:** v1 · **Last updated:** 2026-06-03
+**Version:** v2 · **Last updated:** 2026-06-03
 
 Daily Maze is a once-a-day competitive maze game. Every day the server generates one maze, the same for every player. You drop in at a shared entrance and look for a hidden exit, first-person and in the dark. Everyone plays the same maze at the same time, in one bounded window. Your score is how few steps it takes to reach the exit; if you don't reach it, your score is how close you got. The next day there's a new maze.
 
@@ -87,25 +87,39 @@ Daily Maze #142 🏁 47 steps · top 12%
 - Postgres: durable state — the day's seed, saved maps, the leaderboard.
 - Deploying to a public URL so strangers can actually play is a real goal, not an afterthought.
 
-## Open questions
+## Mahir's questions
 
+Bigger open tensions to come back to, plus the undecided knobs:
+
+- Timing / period / cycle. Grouping the live crowd is handled by instancing (decided — see Multiplayer), so what's left is the window itself: a single synchronized daily event (everyone drops in at one set time — densest crowd, but timezone-unfair and least convenient) versus an open window you can play anytime during the day (convenient and Wordle-like; instancing groups whoever's concurrently online, though off-peak instances will still be small). Window duration and timezone handling fall out of this. Not decided.
+- Deduction core. Which of the two candidate cores in Deduction direction below — crack-the-logic or read-the-odds — and how it plugs into the existing exploration loop. This is the load-bearing open question now.
 - Window duration. How long the daily window stays open. It's a balance lever: window length, maze size, and how many people are playing together decide how often players actually cross paths, which is what makes encounters happen.
 - Encounter form. A (choice) or B (battery bid), or some mix.
 - Render approach. Raycast or Three.js.
 - Encounter trigger rule. How an encounter fires without spamming in a crowd. Candidates (likely a mix): a no-encounter grace zone for the first few tiles near the entrance; a per-player cooldown between encounters; and firing only on a clean one-on-one — for instance when two players end up adjacent and facing each other (there's no collision, so they can share a tile, but a deliberate face-off is what triggers it).
 
-## Mahir's questions
+## Deduction direction
 
-Bigger open tensions to come back to, not just undecided knobs:
+This section is also the answer to solo-play fulfillment. Earlier the read was "a run where you never meet anyone is fulfilling enough on its own — the blind flashlight race plus async competition is a complete game." That no longer holds: an empty maze you just navigate is a daily *Sudoku* — execution and fog-clearing, no actual thinking, no guess → feedback → refine, so it feels empty solo. The fix isn't more multiplayer; it's giving the solo player something to *reason about while they walk*. Picking a deduction core below is what makes the solo loop a complete game on its own — multiplayer (encounters, shared map, live presence) then becomes the ceiling on top, not the thing that has to carry the fun.
 
-- Timing / period / cycle. Grouping the live crowd is handled by instancing (decided — see Multiplayer), so what's left is the window itself: a single synchronized daily event (everyone drops in at one set time — densest crowd, but timezone-unfair and least convenient) versus an open window you can play anytime during the day (convenient and Wordle-like; instancing groups whoever's concurrently online, though off-peak instances will still be small). Window duration and timezone handling fall out of this. Not decided.
-- Solo-play fulfillment. Is a run where you never meet anyone fulfilling enough on its own? Current read: yes — the solo loop (blind flashlight race, traps, shortcuts) plus async competition (same maze, steps leaderboard, run-strip) is a complete game, and encounters are the differentiating ceiling rather than the fun floor. Open question is whether that's actually enough, or whether encounters should be load-bearing. Tied to timing: if solo holds up, the convenient play-anytime model is de-risked.
+The open problem the solo loop exposed: a blind maze is terrain you *traverse*, not a puzzle you *solve* — no hidden answer, no reasoning, just fog-clearing. To be a daily worth coming back to (Wordle-shaped, not daily-Sudoku-shaped) it needs a real guess → feedback → refine loop. The constraint: keep it first-person, in-the-dark, *embodied* — the deduction comes from information you gather **by moving**, never by zooming out to probe the maze as an external object.
+
+The unifying principle: **deduction lives in the gap between what you can perceive and what's actually true** — you close it by moving, observing, and reasoning; never by zooming out.
+
+Two candidate cores are on the table (this is the real fork):
+
+- 1 — Crack the maze's logic (hidden rule, made readable). The maze is generated by a hidden grammar you infer from inside, expressed at three levels of legibility: a *rule* (the true path / traps / exit follow a pattern — Mastermind-from-the-inside), a *signature* (junctions tell on themselves once you learn to read them), and *marks on the walls* (honest but unfamiliar symbols — runes, arrows, counts — decoded like foreign metro signage). Gibberish early; once cracked you navigate confidently and walk out. The logic rotates daily, so **the decode is the shared insight** everyone races to crack — the most Wordle-shaped social texture, with a clean spoiler-free share (post the glyph, not the answer). This is *systemic / "how"* deduction.
+- 2 — Probabilistic maze (read the odds). The maze is *dealt*, not fixed. Paths available at each tile come from a hidden distribution you must learn ("two lefts then a right usually dead-ends"). Infer the generator's bias, gamble on the likely path, manage risk. Poker meets maze; same deck for everyone, so the read is shareable. This is *reading odds instead of logic*, and the maze isn't fixed.
+
+Cut from contention (so we don't relitigate): the maze-as-external-object you probe from outside (Battleship-maze — breaks the embodied frame), and the plain empty-maze navigation loop (the daily-Sudoku problem above).
 
 ## Parked
 
 Recorded so we don't relitigate, but not part of this design:
 
 - Party / cooperative map-pooling.
+- Echolocation. Tap / clap / drop a stone and read the returns — late echo = open space, quick slap = near wall, resonance = chamber, the exit hums. A sensing tool in the flashlight family; could layer onto either deduction core later, but not part of this design yet.
+- Two senses that disagree. Two unreliable instruments (e.g. a compass that points at the exit but lies near traps; a map-sense accurate only for tiles behind you). Neither alone suffices; truth is in the overlap. Explains traps as "where your instruments break down." A triangulation tool to layer on later, not part of this design yet.
 - Warmth / proximity hint. Graded feedback on how close you are to the exit — about four bands, Cold to Burning, by straight-line distance — readable only while the light is on. The direct Wordle analog (graded hints); agreed in principle earlier, but not part of this design yet.
 - Maze Runner mechanics — closing walls that seal the maze as the window ends (a hard-fail that conflicts with the soft-fail rule above), and a maze that visibly reshapes (walls moving), rather than just a fresh maze each day. Good for tension and theme; add once the core loop works.
 - Seasons (a persistent dungeon and leaderboard across many days), prizes, cosmetics.
@@ -113,4 +127,5 @@ Recorded so we don't relitigate, but not part of this design:
 
 ## Changelog
 
+- **v2 — 2026-06-03** — Added a "Deduction direction" section resolving the empty-maze problem: a blind maze is terrain you traverse, not a puzzle you solve, so the solo loop felt like a daily Sudoku. The fix is a real guess → feedback → refine loop that stays first-person and embodied. Narrowed to two candidate cores — (1) crack the maze's hidden logic, (2) probabilistic/dealt maze (read the odds) — with Battleship-maze and empty-navigation cut. Folded solo-play fulfillment into this section (it's the thing that makes the solo loop complete; multiplayer is the ceiling on top). Merged the standalone "Open questions" knobs into "Mahir's questions" and added the deduction-core choice there. Moved echolocation and two-disagreeing-senses to Parked as layer-on sensing tools.
 - **v1 — 2026-06-03** — First version of the new design: a tile-based, first-person, real-time multiplayer race to a hidden exit, scored by steps, with a charted map as the player's asset, trap doors and secret routes, and player encounters that stake and exchange map. Replaces the earlier top-down, single-player concept. Keeps a live presence count but drops the spatial crowd heatmap as redundant with direct presence. Window duration, encounter form, and render approach left open.
