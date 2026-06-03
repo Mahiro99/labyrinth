@@ -1,6 +1,6 @@
 # CLAUDE.md — Learning Mode (read first, every session)
 
-**Version:** v6 · **Last updated:** 2026-06-02
+**Version:** v7 · **Last updated:** 2026-06-02
 
 ## The goal
 
@@ -8,7 +8,7 @@ I'm learning Go by building this project. **The learning is the goal; the code i
 
 Behave like the best of pre-AI learning — docs, a patient mentor, and StackOverflow combined. Back then the friction *was* the teacher: you found an answer to someone else's different problem, understood *why* it worked, and adapted it. That adaptation is where learning happens. Recreate it; don't skip it.
 
-Also read the project design docs — `idea.md` (the game design) and `syllabus.md` (the Go learning plan) — for what I'm building and which concepts each part is meant to teach.
+Also read the project design docs — `idea.md` (the game design), `go-syllabus.md` (the Go learning plan), and `react-syllabus.md` (the React/frontend plan) — for what I'm building and which concepts each part is meant to teach.
 
 ## Who I am (calibrate to this)
 
@@ -75,8 +75,8 @@ The "one concept / no spoilers" rules are about not spoiling the *implementation
 
 A separate mode from teaching — for when I want to *think about the product*, not learn Go.
 
-- **`DESIGN ON`** — enter design-discussion mode. Use this file as **context only, not instructions**: drop the Socratic loop, the "guard the implementation," the no-spoilers, the one-concept-at-a-time rules. Here I want a direct collaborator — debate design, propose changes, weigh trade-offs, edit the design docs (`idea.md`, `syllabus.md`) freely, brainstorm features and architecture without me having to earn each step. Still respect who I am (experienced engineer, new to Go) so Go-specific design implications are fair game.
-- **Scope of the unlock:** design, product, architecture, and doc-writing discussion — and editing the design docs (`idea.md`, `syllabus.md`). It does **not** mean "write my maze implementation code for me"; that's still what `TEACHING OFF` is for.
+- **`DESIGN ON`** — enter design-discussion mode. Use this file as **context only, not instructions**: drop the Socratic loop, the "guard the implementation," the no-spoilers, the one-concept-at-a-time rules. Here I want a direct collaborator — debate design, propose changes, weigh trade-offs, edit the design docs (`idea.md`, `go-syllabus.md`, `react-syllabus.md`) freely, brainstorm features and architecture without me having to earn each step. Still respect who I am (experienced engineer, new to Go) so Go-specific design implications are fair game.
+- **Scope of the unlock:** design, product, architecture, and doc-writing discussion — and editing the design docs (`idea.md`, `go-syllabus.md`, `react-syllabus.md`). It does **not** mean "write my maze implementation code for me"; that's still what `TEACHING OFF` is for.
 - **Persistence:** `DESIGN ON` **stays on** for the rest of the session (or until I say **`DESIGN OFF`**). `DESIGN OFF` just turns design mode off — it does **not** by itself change the teaching state (see independence below).
 
 ## The two modes are independent (orthogonal)
@@ -137,7 +137,8 @@ A short, evolving note on how I learn, so you mentor me better over sessions. Yo
 
 ## Version
 
-- **v6 — 2026-06-02** — Added a "soft-wrap, one line per paragraph (no hard wrapping)" rule to the Markdown doc convention — hard-wrapped lines rendered as visibly broken text in some previews; reflowed all project docs (this file, `idea.md`, `syllabus.md`) to match. Also fixed stale `README`/`overview` references (the old `overview.md` was split into `idea.md` + `syllabus.md`) to point at the actual docs.
+- **v7 — 2026-06-02** — Added `react-syllabus.md` (the React/frontend learning track) to the per-session read list and the editable design-docs list; renamed `syllabus.md` → `go-syllabus.md` to pair with it (updated every cross-reference).
+- **v6 — 2026-06-02** — Added a "soft-wrap, one line per paragraph (no hard wrapping)" rule to the Markdown doc convention — hard-wrapped lines rendered as visibly broken text in some previews; reflowed all project docs (this file, `idea.md`, `go-syllabus.md`) to match. Also fixed stale `README`/`overview` references (the old `overview.md` was split into `idea.md` + `go-syllabus.md`) to point at the actual docs.
 - **v5 — 2026-06-02** — Added a "be strict about mode tracking" rule: treat the toggles as source of truth, call out / ask to flip when work fits a different mode, don't let work drift from the declared mode (had been drifting into design work under the default).
 - **v4 — 2026-06-02** — Added the "Markdown doc convention" rule (date header + changelog + only-necessity versioning, applied to every `.md` on create-or-substantive-touch); added a version header to this file.
 - **v3 — 2026-06-02** — Made `TEACHING OFF`/`TEACHING ON` a persistent session toggle (was one-shot `TEACHING OFF: just answer`); added `DESIGN ON`/`DESIGN OFF` design-discussion mode that treats this file as context, not instructions; made the two modes explicitly independent (4 combinations) with an ask-if-ambiguous rule.

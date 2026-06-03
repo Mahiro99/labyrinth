@@ -2,7 +2,7 @@
 
 **Version:** v2 · **Last updated:** 2026-06-02
 
-A high-level **syllabus**: the map of **Go concepts** this project covers while building it, and roughly how deep. The game itself — the pitch, why this project, and the v1 design — lives in [idea.md](idea.md). This is not a step-by-step build manual.
+A high-level **syllabus**: the map of **Go concepts** this project covers while building it, and roughly how deep. The game itself — the pitch, why this project, and the v1 design — lives in [idea.md](idea.md), and the frontend's React concepts in [react-syllabus.md](react-syllabus.md). This is not a step-by-step build manual.
 
 > **Scope note (deliberate):** ordering/sequencing (what to build first, what unlocks what), proof-of-learning checkpoints ("you understand X when you can do Y without looking it up"), and the anti-shallowness discipline for the _Light_ topics are intentionally **out of scope here** — they'll live in separate planning docs (e.g. a build-order / learning-path doc) created later, as implementation and planning actually begin. This file stays the high-level syllabus; the sequencing and checkpoints are downstream artifacts, not gaps.
 
