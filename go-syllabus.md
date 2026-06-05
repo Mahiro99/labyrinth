@@ -1,8 +1,10 @@
 # Daily Maze — Go Learning Syllabus
 
-**Version:** v2 · **Last updated:** 2026-06-02
+**Version:** v3 · **Last updated:** 2026-06-05
 
 A high-level **syllabus**: the map of **Go concepts** this project covers while building it, and roughly how deep. The game itself — the pitch, why this project, and the v1 design — lives in [idea.md](idea.md), and the frontend's React concepts in [react-syllabus.md](react-syllabus.md). This is not a step-by-step build manual.
+
+> **⚠️ Status (2026-06-05) — premise in flux.** This plan is built around the game's **multiplayer hub** — shared crowd state (heatmap + presence) under many concurrent writers, and live fan-out — which is the deep-end concurrency lesson below. That multiplayer layer has been **pulled from the current game design** ([daily-maze.md](daily-maze.md)) and will be **redefined later**. So the concurrency targets here (contended shared state, presence, fan-out) may change shape once multiplayer returns. The plan is kept intact deliberately — it's not re-scoped to the solo game yet, because that would gut the concurrency learning and we expect multiplayer back in some form. Treat the multiplayer-specific lessons as provisional until then.
 
 > **Scope note (deliberate):** ordering/sequencing (what to build first, what unlocks what), proof-of-learning checkpoints ("you understand X when you can do Y without looking it up"), and the anti-shallowness discipline for the _Light_ topics are intentionally **out of scope here** — they'll live in separate planning docs (e.g. a build-order / learning-path doc) created later, as implementation and planning actually begin. This file stays the high-level syllabus; the sequencing and checkpoints are downstream artifacts, not gaps.
 
@@ -105,5 +107,6 @@ The interesting correctness problem is the **shared state under many simultaneou
 
 ## Changelog
 
+- **v3 — 2026-06-05** — Added a status banner: the multiplayer hub this plan's concurrency spine is built on has been pulled from the current game design and will be redefined, so the multiplayer-specific concurrency targets are provisional. No learning content changed — annotation only, kept intact on purpose.
 - **v2 — 2026-06-02** — Synced to the v2 game design (competitive race-to-exit): updated the shared-state nouns throughout (collective progress counter / fuzzy collective map → crowd heatmap + presence count), added shortest-path-to-exit (BFS) as the scoring algorithm, and dropped the "what Go is for / working thesis / ~75% of Go's sweet spot" framing in favor of "the concurrency cluster this game leans on." Go-concept coverage is otherwise unchanged — the same goroutines/channels/`select`/atomics/`-race`/`time` lessons, just renamed nouns.
 - **v1 — 2026-06-02** — Initial syllabus, extracted from the original `overview.md`. Kept the Go learning plan (goal, practical core, fundamentals, concurrency, stdlib, tooling, concepts-left-out, honest limitations, the one hard idea) and the downstream-docs scope note; the game pitch and design moved to [idea.md](idea.md). Carries the prior content's additions: embedding/zero-values/pointers/`iota`+`Stringer` fundamentals, CSP-first concurrency framing, table-driven testing, and softened "essence of Go" claims.

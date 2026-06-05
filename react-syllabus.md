@@ -1,8 +1,10 @@
 # Daily Maze — React / Frontend Learning Syllabus
 
-**Version:** v2 · **Last updated:** 2026-06-02
+**Version:** v3 · **Last updated:** 2026-06-05
 
 A high-level **syllabus**: the map of **React + frontend concepts** this project's client covers while building it, and roughly how deep. The game and its look live in [idea.md](idea.md); the **Go** server's learning plan lives in [go-syllabus.md](go-syllabus.md). This is the project's **secondary** learning track — the Go server is the primary one, and the frontend is the live client to it.
+
+> **⚠️ Status (2026-06-05) — premise in flux.** Parts of this plan lean on the game's **multiplayer layer** — the live "crowd radar / presence" WebSocket feed rendered to canvas. That multiplayer layer has been **pulled from the current game design** ([daily-maze.md](daily-maze.md)) and will be **redefined later**. The core frontend lessons (React fundamentals, the canvas + render-loop cluster, live WebSocket state, TS discriminated-union messages) still hold for the solo game — only the *crowd/presence* specifics are provisional. Kept intact on purpose until multiplayer's new shape is known.
 
 > **Calibrated to:** comfortable with JavaScript and the browser, **new to React**, writing **TypeScript**. So plain JS / DOM / ES idioms (modules, `async`/`await`, array methods, `fetch`) are **assumed** — not re-taught. React's mental model and hooks are the Core lift; TypeScript gets real practice (you already know types from Java — TS's twist is _structural_ typing and _union_ types, not the idea of types).
 
@@ -114,5 +116,6 @@ Bridging React's **declarative re-render** world with an **imperative, high-freq
 
 ## Changelog
 
+- **v3 — 2026-06-05** — Added a status banner: the multiplayer layer some lessons lean on (crowd radar / presence feed) has been pulled from the current game design and will be redefined, so those specifics are provisional. Core frontend lessons (React, canvas/render-loop, WebSocket state, TS unions) still hold for the solo game. Annotation only — no content re-scoped.
 - **v2 — 2026-06-02** — Audited React-fundamentals coverage and filled the gaps: added **event handling & synthetic events**, **custom hooks** (`useWebSocket` / `useGameLoop` / `useCountdown`), **Rules of Hooks** with the stale-closure and dev-only StrictMode-double-invoke gotchas, and **forms / controlled inputs** (Light). Listed the advanced React surface the project deliberately won't exercise (error boundaries, portals, `Suspense`/`lazy`, transitions, Server Components) so the coverage claim stays honest.
 - **v1 — 2026-06-02** — Initial React/frontend syllabus, mirroring the Go [go-syllabus.md](go-syllabus.md) structure. Calibrated to "comfortable with JS, new to React, TypeScript." Scoped to this project's client: React fundamentals (Core), canvas + raf render loop (Core, the deep cluster), live WebSocket state (Core), TypeScript with discriminated-union messages (Solid), Vite tooling, and the canvas-vs-React boundary as the one hard idea.
