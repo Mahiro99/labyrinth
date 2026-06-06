@@ -1,8 +1,8 @@
 # Daily Maze — Design
 
-**Version:** v12 · **Last updated:** 2026-06-05
+**Version:** v13 · **Last updated:** 2026-06-05
 
-Daily Maze is a once-a-day maze race. Each day the server builds one maze — the same maze for everyone. You drop in at a shared entrance, in the dark, first-person, and look for a hidden exit. Your score is how few steps it took. Don't reach the exit? Your score is how close you got. Next day, new maze.
+Daily Maze is a once-a-day maze race. Each day the server builds one maze — the same maze for everyone. You drop in at a shared entrance, first-person, lit only by a small light that travels with you, and look for a hidden exit. Your score is how few steps it took. Don't reach the exit? Your score is how close you got. Next day, new maze.
 
 It's a first-person solo run. (This replaces the older top-down concept. A social / multiplayer layer may come back later — see Parked — but it's not part of the current design.)
 
@@ -11,9 +11,9 @@ The detailed rules system — the hidden daily rule you crack — has its own do
 ## The loop
 
 - One maze per day, same for everyone, with a shared entrance and a hidden exit. The entrance splits into several paths right away, so you're making choices (and reading runes) from the very first step.
-- The maze is a grid of tiles. You move one tile at a time. Your map fills in as you go — only tiles you've reached are charted; the rest stay dark.
+- The maze is a grid of tiles. You move one tile at a time. Your map fills in as you go — every tile the light has touched is charted; the rest stay dark.
 - One shared daily window: it opens for everyone at the same time and closes for everyone at the same time.
-- First-person and blind. You see only the tile you're on and which ways are open — enough to move, not to plan. You read a junction's runes when you reach it; there's no seeing far ahead.
+- First-person, lit by a small moving light — about a tile in each open direction, no farther. Enough to see the walls and exits around you, not to plan ahead. You read a junction's runes when you reach it, and the maze is built so the light never shows you where a path *ends* — so you still can't see a dead end coming: you commit on the runes, then find out (full reasoning in [maze-rules.md](maze-rules.md)).
 - Goal: reach the hidden exit. It's a race.
 
 ## Scoring
@@ -26,7 +26,7 @@ The detailed rules system — the hidden daily rule you crack — has its own do
 
 ## Your map
 
-- As you move, the maze charts itself for you — seen tiles get marked, the rest stay dark. The server tracks it; you don't draw it.
+- As you move, the maze charts itself for you — every tile the light has touched gets marked (if you saw it, you keep it), the rest stay dark. The server tracks it; you don't draw it.
 - In a steps race, the map is your stored progress: knowing where corridors and dead ends are means fewer wasted steps. The map isn't the score, but the score is made of it.
 - It's also what you share at the end of the day (see Sharing).
 
@@ -53,7 +53,7 @@ Daily Maze #142 🏁 47 steps · top 12%
 
 ## Look and rendering
 
-- First-person. The dark and your immediate surroundings (the tile you're on and its open exits) are the whole look.
+- First-person. A small pool of light around you (about a tile in each open direction — a starting radius we can widen later) and the dark beyond it are the whole look: you see the walls and exits immediately around you, nothing farther.
 - Render approach undecided: a **raycast renderer** (Wolfenstein-style wall slices on a 2D canvas, no 3D engine) or a **3D renderer** (Three.js). Raycast is cheaper and simpler; 3D looks better in the dark.
 - Either way the client is a dumb renderer — it can't build the maze, it only draws the tiles the server sends.
 
@@ -111,7 +111,7 @@ Recorded so we don't relitigate, but not part of this design:
 
 - **Multiplayer / real-time co-presence — pulled out, to be redefined later.** Everything where players share a live space: seeing other players and their flashlight beams, a live presence count ("N exploring"), encounters that stake and exchange map (raid/share, or a battery bid), and instancing to keep crowds healthy. This was a core part of an earlier draft; we've pulled it to focus the design on the solo deduction run, and will redefine it from scratch later. **Note:** when it returns it also reshapes the Go concurrency plan ([go-syllabus.md](go-syllabus.md)), which is currently built around the multiplayer hub (shared state, presence, fan-out). (The *shared daily maze*, the *async leaderboard*, and *spoiler-safe sharing* are **not** part of this pull — they're not real-time multiplayer and stay in the design.)
 - Party / co-op map-pooling.
-- **Flashlight + battery economy — pulled out, parked for later.** A toggleable light that reveals a radius around you and lets you read junctions ahead, draining a finite battery — so every stretch was a choice: burn battery to see ahead, or stay dark to save it. It was the game's risk-economy pillar in an earlier draft; pulled to simplify the current design. **Without it the maze is still first-person and blind — you just can't see ahead, and there's no resource to manage.** (When/if it returns, it also revives the "see ahead vs. save" tension and pairs with the warmth hint below.)
+- **Flashlight + battery economy — pulled out, parked for later.** A toggleable light that reveals a radius around you and lets you read junctions ahead, draining a finite battery — so every stretch was a choice: burn battery to see ahead, or stay dark to save it. It was the game's risk-economy pillar in an earlier draft; pulled to simplify the current design. **Without it the maze is still first-person — lit only by the small always-on light (about a tile), so there's no resource to manage and still no seeing far ahead.** (That ambient light is a different thing from this flashlight: tiny, free, always on, and built to reveal no answers — the flashlight was bigger, battery-limited, and let you scout junctions ahead.) (When/if it returns, it also revives the "see ahead vs. save" tension and pairs with the warmth hint below.)
 - **Echolocation** — tap/clap/drop a stone and read the returns (late echo = open space, quick slap = near wall, resonance = chamber, exit hums). A sensing tool, same family as the parked flashlight; could layer on later.
 - **Two senses that disagree** — two unreliable instruments (a compass that lies near traps; a map-sense accurate only behind you); truth is in the overlap. A triangulation tool to layer on later.
 - **Warmth / proximity hint** — graded "how close to the exit" feedback (Cold→Burning by straight-line distance). Agreed in principle, not in this design yet (would pair with the parked flashlight).
@@ -121,6 +121,7 @@ Recorded so we don't relitigate, but not part of this design:
 
 ## Changelog
 
+- **v13 — 2026-06-05** — Gave the player a **small always-on light** (about a tile in each open direction) in place of pure blind-in-the-dark: you explore by a moving pool of light that charts every tile it touches (if you saw it, you keep it — the map is *what the light has touched*, not just what you stepped on). It's tuned for *mood, not information* — the maze is built so the light never reveals where a path ends, so you still commit to a branch on the runes and only then hit a dead end (matching builder guarantee in [maze-rules.md](maze-rules.md) v10). Reworded the intro, the loop, "Your map," and "Look and rendering," and clarified in Parked that this ambient light is distinct from the pulled battery-flashlight.
 - **v12 — 2026-06-05** — Two changes. (1) **Trap doors folded into the rune language:** a branch of nothing but silence (stacked MUTE runes) is a trap — punishment-only, readable once you've cracked the mute runes (full mechanic in [maze-rules.md](maze-rules.md) v9). (2) **Removed the flashlight + battery economy** to Parked (no longer current). The maze stays first-person and blind, but you now see only the tile you're on and its exits — no seeing ahead, no battery to manage; reworded the loop, scoring (dropped the dead-battery bullet), and "Look and rendering," and de-coupled the parked echolocation/warmth notes from the light.
 - **v11 — 2026-06-05** — Removed the **Secret routes** mechanic (World mechanics is now just trap doors) and deleted the **Open questions** section (window duration, render approach, rule-system pointer) as resolved/redundant — render approach is still described in "Look and rendering," and the rule system lives in [maze-rules.md](maze-rules.md).
 - **v10 — 2026-06-05** — Removed the multiplayer layer from the current design, to be redefined later. Deleted the whole "Multiplayer" section (co-presence, beams, presence count, encounters/raid-share, battery-bid, instancing) and stripped the crowd/encounter references from the loop, "Your map," "Look and rendering," "Stack," the deduction core, and Open questions. Recorded the pulled feature in Parked, flagging that it also reshapes the Go concurrency plan when it returns. The game is now framed as a single-player daily run; the shared daily maze, async leaderboard, and spoiler-safe sharing remain (they aren't real-time multiplayer).
