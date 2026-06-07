@@ -4,24 +4,27 @@
 import { TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakSlider, TweakToggle, TweakColor } from '../tweaks'
 import type { Tweaks } from '../types'
 
+// Slider readout for 0..1 "intensity" sliders — show a whole-number percentage.
+const asPercent = (v: number) => Math.round(v * 100) + '%'
+
 export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: keyof Tweaks | Partial<Tweaks>, val?: unknown) => void }) {
   return (
     <TweaksPanel>
       <TweakSection label="World" />
       <TweakRadio label="Time of day" value={t.mrTime} options={['Day', 'Night']} onChange={(v) => setTweak('mrTime', v)} />
       <TweakSelect label="Weather" value={t.weather} options={['Clear', 'Overcast', 'Storm']} onChange={(v) => setTweak('weather', v)} />
-      {t.weather === 'Storm' && <TweakSlider label="Rain intensity" value={t.rainAmt} min={0.1} max={2} step={0.05} onChange={(v) => setTweak('rainAmt', v)} />}
+      {t.weather === 'Storm' && <TweakSlider label="Rain intensity" value={t.rainAmt} min={0.05} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('rainAmt', v)} />}
       {t.weather === 'Storm' && <TweakToggle label="Lightning" value={t.lightning} onChange={(v) => setTweak('lightning', v)} />}
       <TweakToggle label="Sky (sun / stars)" value={t.sky} onChange={(v) => setTweak('sky', v)} />
       {t.sky && <>
         <TweakSlider label="Sun azimuth" value={t.sunAz} min={-180} max={180} step={5} onChange={(v) => setTweak('sunAz', v)} />
         <TweakSlider label="Sun height" value={t.sunHeight} min={0} max={1} step={0.05} onChange={(v) => setTweak('sunHeight', v)} />
-        {t.mrTime === 'Night' && <TweakSlider label="Star density" value={t.starDensity} min={0} max={2} step={0.05} onChange={(v) => setTweak('starDensity', v)} />}
+        {t.mrTime === 'Night' && <TweakSlider label="Star density" value={t.starDensity} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('starDensity', v)} />}
         <TweakToggle label="Distant spires" value={t.landmark} onChange={(v) => setTweak('landmark', v)} />
-        {t.landmark && <TweakSlider label="Spire count" value={t.spireCount} min={0} max={40} step={1} onChange={(v) => setTweak('spireCount', v)} />}
+        {t.landmark && <TweakSlider label="Spire count" value={t.spireCount} min={0} max={64} step={1} onChange={(v) => setTweak('spireCount', v)} />}
         {t.landmark && <TweakSlider label="Spire height" value={t.spireHeight} min={0.3} max={3} step={0.1} onChange={(v) => setTweak('spireHeight', v)} />}
         <TweakToggle label="Drifting clouds" value={t.clouds} onChange={(v) => setTweak('clouds', v)} />
-        {t.clouds && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1.5} step={0.05} onChange={(v) => setTweak('cloudAmount', v)} />}
+        {t.clouds && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudAmount', v)} />}
         {t.clouds && <TweakSlider label="Cloud speed" value={t.cloudSpeed} min={0} max={4} step={0.1} onChange={(v) => setTweak('cloudSpeed', v)} />}
         {t.clouds && <TweakSlider label="Cloud shade" value={t.cloudShade} min={0} max={1} step={0.05} onChange={(v) => setTweak('cloudShade', v)} />}
         {t.clouds && <TweakColor label="Cloud color" value={t.cloudColor} options={['#bcc3c7', '#e8eaec', '#9aa6b0', '#c9b9a4', '#7a8694']} onChange={(v) => setTweak('cloudColor', v)} />}
@@ -31,18 +34,18 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
 
       <TweakSection label="Ground" />
       <TweakToggle label="Floor grates" value={t.floorDetail} onChange={(v) => setTweak('floorDetail', v)} />
-      {t.floorDetail && <TweakSlider label="Grate frequency" value={t.grateAmt} min={0} max={1} step={0.02} onChange={(v) => setTweak('grateAmt', v)} />}
+      {t.floorDetail && <TweakSlider label="Grate frequency" value={t.grateAmt} min={0} max={1} step={0.02} format={asPercent} onChange={(v) => setTweak('grateAmt', v)} />}
       <TweakToggle label="Pebbles" value={t.pebbles} onChange={(v) => setTweak('pebbles', v)} />
       {t.pebbles && <>
-        <TweakSlider label="Density" value={t.pebbleDensity} min={0} max={2} step={0.05} onChange={(v) => setTweak('pebbleDensity', v)} />
+        <TweakSlider label="Density" value={t.pebbleDensity} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('pebbleDensity', v)} />
         <TweakSlider label="Size" value={t.pebbleSize} min={0.3} max={2.5} step={0.1} onChange={(v) => setTweak('pebbleSize', v)} />
         <TweakSlider label="Randomness" value={t.pebbleRandom} min={0} max={1} step={0.05} onChange={(v) => setTweak('pebbleRandom', v)} />
       </>}
       <TweakToggle label="Grass & leaves" value={t.groundLife} onChange={(v) => setTweak('groundLife', v)} />
-      {t.groundLife && <TweakSlider label="Ground life" value={t.groundLifeAmt} min={0} max={2} step={0.05} onChange={(v) => setTweak('groundLifeAmt', v)} />}
+      {t.groundLife && <TweakSlider label="Ground life" value={t.groundLifeAmt} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('groundLifeAmt', v)} />}
       <TweakToggle label="Drifting leaves" value={t.driftLeaves} onChange={(v) => setTweak('driftLeaves', v)} />
       {t.driftLeaves && <>
-        <TweakSlider label="Leaf amount" value={t.driftAmt} min={0} max={2} step={0.05} onChange={(v) => setTweak('driftAmt', v)} />
+        <TweakSlider label="Leaf amount" value={t.driftAmt} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('driftAmt', v)} />
         <TweakSlider label="Blow direction" value={t.driftDir} min={-180} max={180} step={15} onChange={(v) => setTweak('driftDir', v)} />
         <TweakSlider label="Blow speed" value={t.driftSpeed} min={0.1} max={3} step={0.1} onChange={(v) => setTweak('driftSpeed', v)} />
       </>}
@@ -55,9 +58,9 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       <TweakToggle label="Hanging vines" value={t.vines} onChange={(v) => setTweak('vines', v)} />
       {t.vines && <>
         <TweakRadio label="Leaf style" value={t.vineStyle} options={['Leaves', 'Ivy', 'Pearls', 'Mixed']} onChange={(v) => setTweak('vineStyle', v)} />
-        <TweakSlider label="Density" value={t.vineDensity} min={0} max={1.5} step={0.05} onChange={(v) => setTweak('vineDensity', v)} />
-        <TweakSlider label="Length" value={t.vineLength} min={0.05} max={1} step={0.05} onChange={(v) => setTweak('vineLength', v)} />
-        <TweakSlider label="Closeness" value={t.vineCloseness} min={4} max={36} step={1} onChange={(v) => setTweak('vineCloseness', v)} />
+        <TweakSlider label="Density" value={t.vineDensity} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('vineDensity', v)} />
+        <TweakSlider label="Length" value={t.vineLength} min={0.05} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('vineLength', v)} />
+        <TweakSlider label="Closeness" value={t.vineCloseness} min={4} max={56} step={1} onChange={(v) => setTweak('vineCloseness', v)} />
         <TweakSlider label="Randomness" value={t.vineRandomness} min={0} max={1} step={0.05} onChange={(v) => setTweak('vineRandomness', v)} />
       </>}
 
@@ -88,7 +91,7 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       <TweakToggle label="Edge rim light" value={t.rim} onChange={(v) => setTweak('rim', v)} />
       {t.rim && <TweakSlider label="Rim strength" value={t.rimStrength} min={0} max={1} step={0.05} onChange={(v) => setTweak('rimStrength', v)} />}
       <TweakToggle label="Airborne spores" value={t.haze} onChange={(v) => setTweak('haze', v)} />
-      {t.haze && <TweakSlider label="Spore density" value={t.hazeAmt} min={0} max={3} step={0.05} onChange={(v) => setTweak('hazeAmt', v)} />}
+      {t.haze && <TweakSlider label="Spore density" value={t.hazeAmt} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('hazeAmt', v)} />}
       <TweakToggle label="Film grain" value={t.grain} onChange={(v) => setTweak('grain', v)} />
       {t.grain && <TweakSlider label="Grain amount" value={t.grainAmt} min={0} max={1} step={0.05} onChange={(v) => setTweak('grainAmt', v)} />}
 

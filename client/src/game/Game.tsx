@@ -2,18 +2,17 @@
 // canvases (first-person, minimap) are drawn by useGame's rAF loop.
 
 import { getWorld } from '../worlds'
+import { theme } from '../theme'
 import { useGame } from './useGame'
 import { Hud } from './Hud'
 import { Minimap } from './Minimap'
 import { GameTweaks } from './GameTweaks'
 
-const mono = '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace';
-
 export default function Game() {
   const { canvasRef, miniRef, hud, hint, t, setTweak } = useGame();
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: getWorld(t.world, t.mrTime, t.stainAmount, t.crackAmount).fogCss, color: '#cdd6e3', fontFamily: mono, overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', inset: 0, background: getWorld(t.world, t.mrTime, t.stainAmount, t.crackAmount).fogCss, color: theme.hud.secondary, fontFamily: theme.font.mono, overflow: 'hidden' }}>
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
 
       <Hud steps={hud.steps} charted={hud.charted} reached={hud.reached} hint={hint} />

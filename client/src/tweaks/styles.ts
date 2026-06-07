@@ -1,20 +1,29 @@
 // styles.ts
-// The Tweaks panel CSS, kept as one verbatim template string so the shell and
-// controls share a single source of styling.
+// The Tweaks panel CSS, built once from the central theme so the panel's paper /
+// ink / accent colours and its dock corner live in one place (theme.panel). The
+// neutral rgba(0,0,0,…) / rgba(255,255,255,…) shadows and hairlines are left
+// inline — they're structural depth cues, not part of the themeable palette.
+
+import { theme } from '../theme'
+
+const P = theme.panel.paper // "r,g,b" paper surface
+const I = theme.panel.ink // "r,g,b" ink/text
+const ON = theme.panel.accentOn // toggle "on" colour
+const V = theme.panel.anchor // vertical dock corner: 'top' | 'bottom'
 
 export const TWEAKS_STYLE = `
-  .twk-fab{position:fixed;right:16px;bottom:16px;z-index:2147483646;
+  .twk-fab{position:fixed;right:16px;${V}:16px;z-index:2147483646;
     appearance:none;border:.5px solid rgba(255,255,255,.6);cursor:pointer;
-    background:rgba(250,249,247,.82);color:#29261b;
+    background:rgba(${P},.82);color:rgb(${I});
     -webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);
     border-radius:11px;padding:8px 13px;font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;
     letter-spacing:.02em;box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 8px 24px rgba(0,0,0,.16);
     transition:transform .12s ease,box-shadow .12s ease}
   .twk-fab:hover{transform:translateY(-1px);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 30px rgba(0,0,0,.22)}
-  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+  .twk-panel{position:fixed;right:16px;${V}:16px;z-index:2147483646;width:280px;
     max-height:calc(100vh - 32px);display:flex;flex-direction:column;
-    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
-    background:rgba(250,249,247,.78);color:#29261b;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:${V} right;
+    background:rgba(${P},.78);color:rgb(${I});
     -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
     border:.5px solid rgba(255,255,255,.6);border-radius:14px;
     box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
@@ -22,9 +31,9 @@ export const TWEAKS_STYLE = `
   .twk-hd{display:flex;align-items:center;justify-content:space-between;
     padding:10px 8px 10px 14px;cursor:move;user-select:none}
   .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
-  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(${I},.55);
     width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
-  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:rgb(${I})}
   .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
     overflow-y:auto;overflow-x:hidden;min-height:0;
     scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
@@ -37,12 +46,12 @@ export const TWEAKS_STYLE = `
   .twk-row{display:flex;flex-direction:column;gap:5px}
   .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
   .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
-    color:rgba(41,38,27,.72)}
+    color:rgba(${I},.72)}
   .twk-lbl>span:first-child{font-weight:500}
-  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+  .twk-val{color:rgba(${I},.5);font-variant-numeric:tabular-nums}
 
   .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-    color:rgba(41,38,27,.45);padding:10px 0 0}
+    color:rgba(${I},.45);padding:10px 0 0}
   .twk-sect:first-child{padding-top:0}
 
   .twk-field{appearance:none;box-sizing:border-box;width:100%;min-width:0;height:26px;padding:0 8px;
@@ -74,21 +83,21 @@ export const TWEAKS_STYLE = `
 
   .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
     background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
-  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle[data-on="1"]{background:${ON}}
   .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
     background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
   .twk-toggle[data-on="1"] i{transform:translateX(14px)}
 
   .twk-num{display:flex;align-items:center;box-sizing:border-box;min-width:0;height:26px;padding:0 0 0 8px;
     border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
-  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+  .twk-num-lbl{font-weight:500;color:rgba(${I},.6);cursor:ew-resize;
     user-select:none;padding-right:8px}
   .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
     font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
     outline:none;color:inherit;-moz-appearance:textfield}
   .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
     -webkit-appearance:none;margin:0}
-  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+  .twk-num-unit{padding-right:8px;color:rgba(${I},.45)}
 
   .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
     background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}

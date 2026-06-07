@@ -35,15 +35,17 @@ function TweakRow(
 
 // ── Controls ────────────────────────────────────────────────────────────────
 
+// `format` overrides the value readout (e.g. show a 0..1 slider as a percentage);
+// it falls back to the raw value plus `unit`.
 function TweakSlider(
-  { label, value, min = 0, max = 100, step = 1, unit = '', onChange }:
+  { label, value, min = 0, max = 100, step = 1, unit = '', format, onChange }:
   {
     label: ReactNode; value: number; min?: number; max?: number; step?: number;
-    unit?: string; onChange: (v: number) => void
+    unit?: string; format?: (v: number) => string; onChange: (v: number) => void
   },
 ) {
   return (
-    <TweakRow label={label} value={`${value}${unit}`}>
+    <TweakRow label={label} value={format ? format(value) : `${value}${unit}`}>
       <input type="range" className="twk-slider" min={min} max={max} step={step}
              value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </TweakRow>

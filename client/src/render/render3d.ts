@@ -12,8 +12,10 @@
 
 import type { GameState, Tweaks } from '../types'
 import { hexToRgb, mix, rgba } from '../lib/color'
+import { theme } from '../theme'
 import { getWorld } from '../worlds'
 import { clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
+import { QUANTITY, qty } from './quantity'
 
 // cheap deterministic hash -> 0..1 (for vine placement)
 function _h2(a: number, b: number): number { let t = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; t = Math.imul(t ^ (t >>> 13), 1274126177); t ^= t >>> 16; return ((t >>> 0) % 100003) / 100003; }
@@ -294,7 +296,7 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     }
   } else {
     const st = stars();
-    const nStars = Math.min(st.length, Math.round(180 * (tw.starDensity == null ? 0.6 : tw.starDensity) * clear));
+    const nStars = Math.min(st.length, Math.round(qty(tw.starDensity == null ? 0.24 : tw.starDensity, QUANTITY.stars) * clear));
     for (let i = 0; i < nStars; i++) {
       const s = st[i], b = bearing(s.az);
       if (Math.abs(b) > 0.72) continue;
@@ -438,10 +440,10 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   // ---- DRIFTING CLOUDS: soft blobs easing across the open-top strip. ----
   if (tw.clouds) {
     const cl = clouds();
-    const cAmt = tw.cloudAmount == null ? 0.55 : tw.cloudAmount;
+    const cAmt = tw.cloudAmount == null ? 0.28 : tw.cloudAmount;
     const cSpd = tw.cloudSpeed == null ? 1 : tw.cloudSpeed;
     const cShade = tw.cloudShade == null ? 0 : tw.cloudShade;     // 0 light → 1 heavy/dark
-    const nDraw = Math.round(Math.max(0, Math.min(1.5, cAmt)) * 28);
+    const nDraw = Math.min(cl.length, qty(cAmt, QUANTITY.clouds));
     // base colour from the tweak (hex), darkened by shade; night is always darker
     const baseRGB = (tw.cloudColor ? hexToRgb(tw.cloudColor) : null) || (daylight ? [188, 195, 199] : [50, 58, 72]);
     const col = daylight ? mix(baseRGB, [30, 34, 40], cShade * 0.7) : mix(baseRGB, [10, 12, 16], 0.4 + cShade * 0.4);
@@ -668,7 +670,7 @@ function drawPebbles(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     const pb = pebbles(); const P = 4, ca = Math.cos(ang), sa = Math.sin(ang);
     const rnd = tw.pebbleRandom == null ? 1 : tw.pebbleRandom;
     const szMul = tw.pebbleSize == null ? 1 : tw.pebbleSize;
-    const nDraw = Math.min(pb.length, Math.round(150 * (tw.pebbleDensity == null ? 1 : tw.pebbleDensity)));
+    const nDraw = Math.min(pb.length, qty(tw.pebbleDensity == null ? 0.26 : tw.pebbleDensity, QUANTITY.pebbles));
     for (let i = 0; i < nDraw; i++) {
       const p = pb[i];
       const ux = p.gx + (p.ux - p.gx) * rnd, uy = p.gy + (p.uy - p.gy) * rnd;
@@ -702,7 +704,7 @@ function drawGroundLife(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { world, tw, W, H, M, eyeX, eyeY, ang, half, step, cDepth, lightAt, windAt } = rc;
   if (world.id === 'mazerunner' && tw.groundLife) {
     const gl = groundLife(); const P = 5, ca = Math.cos(ang), sa = Math.sin(ang);
-    const nDraw = Math.min(gl.length, Math.round(120 * (tw.groundLifeAmt == null ? 0.8 : tw.groundLifeAmt)));
+    const nDraw = Math.min(gl.length, qty(tw.groundLifeAmt == null ? 0.28 : tw.groundLifeAmt, QUANTITY.groundLife));
     for (let i = 0; i < nDraw; i++) {
       const p = gl[i];
       const wx = p.ux * P + P * Math.round((eyeX - p.ux * P) / P);
@@ -747,7 +749,7 @@ function drawDriftLeaves(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { world, tw, W, H, eyeX, eyeY, ang, half, step, cDepth, lightAt, now } = rc;
   if (world.id === 'mazerunner' && tw.driftLeaves) {
     const dl = driftLeaves(); const P = 9, ca = Math.cos(ang), sa = Math.sin(ang);
-    const nD = Math.min(dl.length, Math.round(70 * (tw.driftAmt == null ? 0.7 : tw.driftAmt)));
+    const nD = Math.min(dl.length, qty(tw.driftAmt == null ? 0.24 : tw.driftAmt, QUANTITY.driftLeaves));
     const wind = (tw.wind ? tw.windAmt : 0.3) * (tw.driftSpeed == null ? 1 : tw.driftSpeed);
     // blow direction in WORLD space (degrees → unit vector); leaves stream along it
     const dir = (tw.driftDir == null ? 45 : tw.driftDir) * 0.0174533;
@@ -787,13 +789,17 @@ function drawDriftLeaves(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 // swaying stem), Pearls (string-of-pearls beads). All sway with wind. ----
 function drawVines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { world, tw, cN, cU, cTop, cBot, cX, cDepth, lightAt, windAt } = rc;
-  if (world.id === 'mazerunner' && tw.vines && tw.vineDensity > 0) {
-    const slots = Math.max(3, Math.round(tw.vineCloseness));
+  if (world.id === 'mazerunner' && tw.vineDensity > 0 && tw.vines) {
+    // Density (0..1) is a fill fraction, so on its own it saturates at "every
+    // slot". To let it keep adding vines past that, density ALSO grows the number
+    // of anchor slots — so quantity climbs across the whole slider, not just to 1.
+    const density = Math.min(1, tw.vineDensity);
+    const slots = Math.max(3, Math.round(tw.vineCloseness * (0.6 + 0.7 * density)));
     const style = tw.vineStyle || 'Leaves';
     for (let j = 0; j < cN.length; j++) {
       const cell = cN[j], u = cU[j], top = cTop[j], lineH = cBot[j] - cTop[j], col = cX[j];
       const si = (u * slots) | 0;
-      if (_h2(cell, si * 131 + 5) > tw.vineDensity) continue;
+      if (_h2(cell, si * 131 + 5) > density) continue;
       const center = (si + 0.5 + (_h2(cell, si * 131 + 9) - 0.5) * tw.vineRandomness) / slots;
       const halfW = (0.5 / slots) * (0.45 + 0.55 * _h2(cell, si * 131 + 13));
       if (Math.abs(u - center) > halfW) continue;
@@ -856,7 +862,7 @@ function drawHeldGlow(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 function drawHaze(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { world, tw, daylight, W, H, R, fall, flick, eyeX, eyeY, ang, half, step, cDepth, bobY, roll, now } = rc;
   if (tw.haze && tw.hazeAmt > 0) {
-    const sp = spores(); const nM = Math.min(sp.length, Math.floor(64 * tw.hazeAmt));
+    const sp = spores(); const nM = Math.min(sp.length, qty(tw.hazeAmt, QUANTITY.haze));
     const P = 6;                                  // world tiling period (tiles)
     const tint = world.haze, drift = world.hazeDrift;
     const t = now, ca = Math.cos(ang), sa = Math.sin(ang);
@@ -884,7 +890,9 @@ function drawHaze(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       if (daylight) lightF = Math.max(0.2, 1 - dist / world.viewDist);
       else lightF = Math.pow(Math.max(0, 1 - dist / (R * 1.15)), fall);
       if (lightF <= 0.04) continue;
-      const a = 0.5 * tw.hazeAmt * lightF * (0.72 + 0.28 * flick);
+      // count scales via qty(); per-mote alpha scales linearly so the layer goes
+      // from a faint veil to thick fog without ever fully washing out the frame.
+      const a = 0.7 * tw.hazeAmt * lightF * (0.72 + 0.28 * flick);
       const rad = Math.max(0.4, m.sz * (1.3 / depth));   // parallax size
       ctx.fillStyle = rgba(tint, a);
       ctx.beginPath(); ctx.arc(sx, sy, rad, 0, 7); ctx.fill();
@@ -899,8 +907,8 @@ function drawRain(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { tw, raining, W, H, now } = rc;
   if (raining) {
     const rainP = rain();
-    const intensity = tw.rainAmt == null ? 0.7 : tw.rainAmt;
-    const nD = Math.min(rainP.length, Math.round(500 * intensity));
+    const intensity = tw.rainAmt == null ? 0.32 : tw.rainAmt;
+    const nD = Math.min(rainP.length, qty(intensity, QUANTITY.rain));
     const gust = 0.5 + 0.5 * Math.sin(now * 0.00035) + 0.18 * Math.sin(now * 0.0013 + 1.7);
     const baseSlant = (tw.wind ? tw.windAmt : 0.3) * 0.5 * (0.6 + 0.4 * gust) + 0.12;
     const layers = [
@@ -1004,12 +1012,16 @@ function drawFilmGrain(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
 }
 
-// facing readout
+// facing readout — a contrasting halo keeps it legible over bright or dark floor
 function drawCompass(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { gs, daylight, W, H } = rc;
-  ctx.fillStyle = daylight ? 'rgba(40,44,40,0.55)' : 'rgba(180,200,220,0.5)';
-  ctx.font = '11px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
   const compass = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
   const ci = ((Math.round(gs.faceA / (Math.PI / 4)) % 8) + 8) % 8;
+  ctx.save();
+  ctx.font = '600 12px ' + theme.font.mono; ctx.textAlign = 'center';
+  ctx.shadowColor = daylight ? theme.compass.dayHalo : theme.compass.nightHalo;
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = daylight ? theme.compass.day : theme.compass.night;
   ctx.fillText('▲ FACING ' + compass[ci] + '  ·  ← → TURN  ·  ↑ ↓ MOVE', W / 2, H - 22);
+  ctx.restore();
 }

@@ -25,11 +25,12 @@ export function grainTile(): HTMLCanvasElement {
   x.putImageData(img, 0, 0); _grainTileCache = c; return c;
 }
 // seeded haze volume — fixed points in maze space (unit cube, scaled by a world
-// tiling period at draw time). World-anchored, not screen.
+// tiling period at draw time). World-anchored, not screen. Pool sized to the
+// haze peak in quantity.ts.
 export function spores() {
   if (_sporesCache) return _sporesCache;
   const a = [];
-  for (let i = 0; i < 200; i++) a.push({ ux: Math.random(), uy: Math.random(), uz: Math.random(), spd: 0.6 + Math.random() * 1.2, sz: 0.7 + Math.random() * 1.8, ph: Math.random() * 7 });
+  for (let i = 0; i < 400; i++) a.push({ ux: Math.random(), uy: Math.random(), uz: Math.random(), spd: 0.6 + Math.random() * 1.2, sz: 0.7 + Math.random() * 1.8, ph: Math.random() * 7 });
   _sporesCache = a; return a;
 }
 // seeded starfield — fixed bearings/elevations on a sky dome (night only)
@@ -38,7 +39,7 @@ export function stars() {
   const a = [];
   // fully random scatter across the whole dome — jittered magnitude & size so no
   // grid/banding reads. Larger pool so a higher density slider has headroom.
-  for (let i = 0; i < 420; i++) a.push({ az: Math.random() * 6.2832, el: Math.pow(Math.random(), 0.85), mag: 0.25 + Math.random() * 0.75, sz: 0.5 + Math.random() * Math.random() * 1.8, ph: Math.random() * 7 });
+  for (let i = 0; i < 760; i++) a.push({ az: Math.random() * 6.2832, el: Math.pow(Math.random(), 0.85), mag: 0.25 + Math.random() * 0.75, sz: 0.5 + Math.random() * Math.random() * 1.8, ph: Math.random() * 7 });
   _starsCache = a; return a;
 }
 // seeded pebble scatter — fixed points on the floor plane, tiled around the player
@@ -46,7 +47,7 @@ export function pebbles() {
   if (_pebblesCache) return _pebblesCache;
   const pal = [[120, 118, 104], [98, 96, 86], [142, 138, 122], [110, 104, 90], [86, 88, 82]];
   const a = []; const G = 13;
-  for (let i = 0; i < 340; i++) a.push({ ux: Math.random(), uy: Math.random(), gx: ((i % G) + 0.5) / G, gy: (((i / G) | 0) % G + 0.5) / G, sz: 0.5 + Math.random() * 1.4, rot: Math.random() * 3.14, tone: pal[(Math.random() * pal.length) | 0] });
+  for (let i = 0; i < 760; i++) a.push({ ux: Math.random(), uy: Math.random(), gx: ((i % G) + 0.5) / G, gy: (((i / G) | 0) % G + 0.5) / G, sz: 0.5 + Math.random() * 1.4, rot: Math.random() * 3.14, tone: pal[(Math.random() * pal.length) | 0] });
   _pebblesCache = a; return a;
 }
 
@@ -54,7 +55,7 @@ export function pebbles() {
 export function rain() {
   if (_rainCache) return _rainCache;
   const a = [];
-  for (let i = 0; i < 1000; i++) a.push({ x: Math.random(), y: Math.random(), spd: 0.8 + Math.random() * 0.7, len: 0.7 + Math.random() * 0.6 });
+  for (let i = 0; i < 1400; i++) a.push({ x: Math.random(), y: Math.random(), spd: 0.8 + Math.random() * 0.7, len: 0.7 + Math.random() * 0.6 });
   _rainCache = a; return a;
 }
 // seeded ground splashes — fixed screen anchors near the floor that pulse on a cycle
@@ -69,7 +70,7 @@ export function splashes() {
 export function groundLife() {
   if (_groundLifeCache) return _groundLifeCache;
   const a = [];
-  for (let i = 0; i < 280; i++) {
+  for (let i = 0; i < 600; i++) {
     const kind = Math.random() < 0.62 ? 'grass' : 'leaf';
     a.push({ ux: Math.random(), uy: Math.random(), kind, sz: 0.6 + Math.random() * 1.1, rot: Math.random() * 3.14, blades: 3 + (Math.random() * 3 | 0), hue: Math.random() });
   }
@@ -79,14 +80,14 @@ export function groundLife() {
 export function driftLeaves() {
   if (_driftLeavesCache) return _driftLeavesCache;
   const a = [];
-  for (let i = 0; i < 150; i++) a.push({ ux: Math.random(), uy: Math.random(), uz: Math.random(), fall: 0.5 + Math.random() * 0.8, sway: Math.random() * 7, sz: 0.7 + Math.random() * 1.1, spin: Math.random() * 7 });
+  for (let i = 0; i < 400; i++) a.push({ ux: Math.random(), uy: Math.random(), uz: Math.random(), fall: 0.5 + Math.random() * 0.8, sway: Math.random() * 7, sz: 0.7 + Math.random() * 1.1, spin: Math.random() * 7 });
   _driftLeavesCache = a; return a;
 }
 // seeded clouds — soft blobs drifting across the open-top sky strip
 export function clouds() {
   if (_cloudsCache) return _cloudsCache;
   const a = [];
-  for (let i = 0; i < 40; i++) a.push({ az: Math.random() * 6.2832, el: Math.random(), sz: 0.7 + Math.random() * 1.1, spd: 0.2 + Math.random() * 0.5, puff: Math.random() * 7 });
+  for (let i = 0; i < 84; i++) a.push({ az: Math.random() * 6.2832, el: Math.random(), sz: 0.7 + Math.random() * 1.1, spd: 0.2 + Math.random() * 0.5, puff: Math.random() * 7 });
   _cloudsCache = a; return a;
 }
 // seeded distant spires — each at its own bearing + distance (depth), with a shape.
@@ -95,7 +96,7 @@ export function spires() {
   if (_spiresCache) return _spiresCache;
   const shapes = ['stepped', 'tapered', 'crown', 'finned', 'twin', 'cooling', 'mast', 'capsule'];
   const a = [];
-  const N = 40;
+  const N = 64;
   for (let i = 0; i < N; i++) {
     a.push({
       az: (i / N) * 6.2832 + Math.random() * 0.16,    // ring the player in all directions

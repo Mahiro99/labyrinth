@@ -6,7 +6,12 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
+import { theme } from '../theme'
 import { TWEAKS_STYLE } from './styles'
+
+// Vertical dock corner, shared with the panel CSS — flip theme.panel.anchor to
+// move both the FAB and the panel between top-right and bottom-right.
+const ANCHOR: 'top' | 'bottom' = theme.panel.anchor
 
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
 // Floating shell. The FAB is always shown (this app is always top-level).
@@ -17,18 +22,20 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
   const offsetRef = useRef<{ x: number; y: number }>({ x: 16, y: 16 })
   const PAD = 16
 
+  // offsetRef.x = distance from the right edge; offsetRef.y = distance from the
+  // ANCHOR edge (top or bottom). Both are clamped into the viewport.
   const clampToViewport = useCallback(() => {
     const panel = dragRef.current
     if (!panel) return
     const w = panel.offsetWidth, h = panel.offsetHeight
     const maxRight = Math.max(PAD, window.innerWidth - w - PAD)
-    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD)
+    const maxV = Math.max(PAD, window.innerHeight - h - PAD)
     offsetRef.current = {
       x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
-      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+      y: Math.min(maxV, Math.max(PAD, offsetRef.current.y)),
     }
     panel.style.right = offsetRef.current.x + 'px'
-    panel.style.bottom = offsetRef.current.y + 'px'
+    panel.style.setProperty(ANCHOR, offsetRef.current.y + 'px')
   }, [])
 
   useEffect(() => {
@@ -66,11 +73,12 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
     const r = panel.getBoundingClientRect()
     const sx = e.clientX, sy = e.clientY
     const startRight = window.innerWidth - r.right
-    const startBottom = window.innerHeight - r.bottom
+    const startV = ANCHOR === 'top' ? r.top : window.innerHeight - r.bottom
     const move = (ev: MouseEvent) => {
+      const dyToAnchor = ANCHOR === 'top' ? ev.clientY - sy : sy - ev.clientY
       offsetRef.current = {
         x: startRight - (ev.clientX - sx),
-        y: startBottom - (ev.clientY - sy),
+        y: startV + dyToAnchor,
       }
       clampToViewport()
     }
@@ -96,7 +104,7 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
     <>
       <style>{TWEAKS_STYLE}</style>
       <div ref={dragRef} className="twk-panel" data-omelette-chrome=""
-           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+           style={{ right: offsetRef.current.x, [ANCHOR]: offsetRef.current.y }}>
         <div className="twk-hd" onMouseDown={onDragStart}>
           <b>{title}</b>
           <button className="twk-x" aria-label="Close tweaks"
