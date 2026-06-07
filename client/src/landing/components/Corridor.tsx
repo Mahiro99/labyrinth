@@ -1,9 +1,11 @@
 // Corridor.tsx — the corridor scene: overcast concrete room, sandy floor, far towers, ivy.
 import { Ivy } from './Ivy';
+import { TOWER_WINDOWS } from '../towerWindows';
+import { LEFT_WEATHER, RIGHT_WEATHER } from '../cracks';
 import { CORRIDOR_DEFAULTS, vignetteCss } from '../corridorTweaks';
 import type { CorridorTweaks } from '../corridorTweaks';
 
-export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS }: { dim?: boolean; t?: CorridorTweaks }) {
+export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS, portrait = false }: { dim?: boolean; t?: CorridorTweaks; portrait?: boolean }) {
   const vig = vignetteCss(t);
   const wall = (clip: string, grad: string, extra?: React.CSSProperties): React.CSSProperties =>
     ({ position: 'absolute', inset: 0, clipPath: clip, background: grad, ...extra });
@@ -15,9 +17,14 @@ export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS }: { dim?: boolean
       {/* sky — sickly pallid band up top dropping fast to black */}
       <div style={{ position: 'absolute', inset: 0,
         background: 'linear-gradient(180deg, var(--sky-hi) 0%, var(--sky) 32%, #060804 58%)' }}></div>
-      {/* distant towers — looming, jagged monoliths crowding the horizon */}
-      <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '50%' }}
-        viewBox="0 0 100 50" preserveAspectRatio="none">
+      {/* distant towers — looming, jagged monoliths crowding the horizon. On a
+          portrait-ish viewport, 'none' stretches them into thin needles, but 'meet'
+          alone shrinks them to a tiny centred cluster. So we slice (fill width, crop
+          excess height) and bottom-anchor the bases to the horizon — the skyline
+          stays full-width and looming instead of dwindling. */}
+      <svg style={{ position: 'absolute', left: 0, top: 0, width: '100%',
+        height: portrait ? '40%' : '50%' }}
+        viewBox="0 0 100 50" preserveAspectRatio={portrait ? 'xMidYMax slice' : 'none'}>
         {/* far haze layer — pale, distant, tall */}
         <g fill="#525a4f" opacity="0.34">
           <polygon points="35,50 35.6,18 36.3,18 36.7,50" />
@@ -41,6 +48,15 @@ export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS }: { dim?: boolean
           <polygon points="48.0,1.5 48.5,4 47.7,4.5" />
           <polygon points="53.7,2 54.2,5 53.2,5" />
         </g>
+        {/* tiny red window-lights scattered up the towers — a city out there,
+            occupied, watching. Seeded so the lit windows are stable; a few flicker. */}
+        <g fill="#c2402a" style={{ filter: 'drop-shadow(0 0 0.4px rgba(216,80,52,0.9))' }}>
+          {TOWER_WINDOWS.map((w, i) => (
+            <rect key={i} x={w.x} y={w.y} width={w.w} height={w.h} opacity={w.o} rx={0.08}
+              style={w.dur ? { animation: `lab-window-flicker ${w.dur}s ease-in-out infinite`,
+                animationDelay: `${w.delay}s` } : undefined} />
+          ))}
+        </g>
       </svg>
       {/* far wall (center, hazy lighter) */}
       <div style={wall('polygon(40% 38%, 60% 38%, 60% 62%, 40% 62%)',
@@ -61,6 +77,37 @@ export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS }: { dim?: boolean
       <div style={{ position: 'absolute', left: '44%', top: '70%', width: '12%', height: '7%',
         background: 'rgba(226,228,220,0.05)', border: '1px solid rgba(226,228,220,0.12)',
         transform: 'perspective(280px) rotateX(58deg)' }}></div>
+
+      {/* concrete relief — pale pitting, panel form-lines, and cracks (dark core +
+          a light catching-edge so they read on dark stone). Each set clipped to its
+          wall so the texture sits on the stone, perspective-correct via the clip. */}
+      {([
+        { clip: 'polygon(0 3%, 40% 38%, 40% 62%, 0 100%)', wx: LEFT_WEATHER },
+        { clip: 'polygon(100% 3%, 60% 38%, 60% 62%, 100% 100%)', wx: RIGHT_WEATHER },
+      ] as const).map((side, si) => (
+        <div key={si} style={{ position: 'absolute', inset: 0, clipPath: side.clip, pointerEvents: 'none' }}>
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+            preserveAspectRatio="none" viewBox="0 0 100 100">
+            {/* horizontal panel form-lines */}
+            {side.wx.seams.map((s, i) => (
+              <line key={`m${i}`} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+                stroke="#cfd4c8" strokeWidth={0.1} opacity={s.o} />
+            ))}
+            {/* pale pitting/aggregate speckle — the rough surface catching light */}
+            {side.wx.pits.map((p, i) => (
+              <circle key={`p${i}`} cx={p.cx} cy={p.cy} r={p.r} fill="#d4d8cc" opacity={p.o} />
+            ))}
+            {/* cracks: light highlight edge under a dark core = carved relief */}
+            {side.wx.cracks.map((c, i) => (
+              <g key={`c${i}`} opacity={c.o}>
+                <path d={c.d} stroke="#c8ccc0" strokeWidth={c.w + 0.12} fill="none"
+                  opacity={0.28} strokeLinecap="round" transform="translate(0,0.12)" />
+                <path d={c.d} stroke="#050604" strokeWidth={c.w} fill="none" strokeLinecap="round" />
+              </g>
+            ))}
+          </svg>
+        </div>
+      ))}
 
       {/* concrete seam lines (perspective) */}
       <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}

@@ -2,14 +2,16 @@
    Ported from the <style> block of Labyrinth Landing.html. */
 
 :root {
-  /* dusk-lamplit, pushed toward dread: sickly horizon, near-black void floor */
-  --sky: #10130d; /* near-black overcast */
-  --sky-hi: #4b5346; /* sickly pallid horizon glow behind the towers */
-  --concrete: #3f463b; /* lamp-lit wall */
-  --concrete-sh: #282d25; /* shadowed wall (deeper) */
-  --concrete-far: #2c322a; /* far wall — the way out barely glows */
-  --floor: #111309; /* blackish floor (far) */
-  --floor-hi: #080905; /* the void underfoot (near) */
+  /* dusk-lamplit, pushed toward dread: cold neutral stone, near-black void floor.
+     Concrete/floor/sky desaturated off the old green tint toward cold grey and
+     darkened; the moss accent + terracotta below stay coloured so they still pop. */
+  --sky: #0c0d0b; /* near-black overcast */
+  --sky-hi: #3c3e3a; /* pallid cold horizon glow behind the towers */
+  --concrete: #34352f; /* lamp-lit wall — cold grey stone */
+  --concrete-sh: #1f201d; /* shadowed wall (deeper) */
+  --concrete-far: #212220; /* far wall — the way out barely glows */
+  --floor: #0d0d0a; /* blackish floor (far) */
+  --floor-hi: #050504; /* the void underfoot (near) */
   --ink: #e2e4dc; /* primary light text */
   --ink-soft: #9ba093; /* secondary grey (HUD) */
   --ink-faint: #6c7165;
@@ -75,14 +77,99 @@
   0%, 64%, 100% { transform: translateY(0); opacity: 1; }
   80%, 86% { transform: translateY(-13px); opacity: 0.12; }
 }
+/* a few tower windows flicker — a distant, failing light, not a strobe. The dip
+   is brief and shallow; per-window dur/delay keep them out of sync. */
+@keyframes lab-window-flicker {
+  0%, 100% { opacity: 1; }
+  46% { opacity: 1; }
+  50% { opacity: 0.15; }
+  54% { opacity: 0.9; }
+  58% { opacity: 0.3; }
+  62% { opacity: 1; }
+}
 
-/* paper grain over the whole scene */
+/* fireflies — slow looping wander paths. Several shared paths; each mote varies
+   by duration/delay/start so the swarm never marches in lockstep. translate is in
+   the mote's own local space (small %), layered under the cursor-pull on the
+   container, so drift and attraction compose. */
+@keyframes lab-fly-a {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(34px, -26px); }
+  50%  { transform: translate(12px, -52px); }
+  75%  { transform: translate(-28px, -22px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes lab-fly-b {
+  0%   { transform: translate(0, 0); }
+  30%  { transform: translate(-30px, 24px); }
+  55%  { transform: translate(20px, 44px); }
+  80%  { transform: translate(38px, 10px); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes lab-fly-c {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(26px, 30px); }
+  45%  { transform: translate(48px, -8px); }
+  70%  { transform: translate(8px, -34px); }
+  100% { transform: translate(0, 0); }
+}
+/* the bright core pulses — like a firefly's intermittent glow */
+@keyframes lab-fly-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-fly, .lab-fly-core { animation: none !important; }
+}
+
+/* ENTER → dive into the floor hatch: the corridor rushes toward the vanishing
+   point (the hatch at ~50%/72%) while the UI drops away, then a white blink as
+   we cross the threshold into the game. */
+@keyframes lab-dive {
+  0%   { transform: scale(1);   filter: brightness(1); }
+  72%  { transform: scale(7);   filter: brightness(1.05); }
+  88%  { transform: scale(12);  filter: brightness(2.4); }
+  100% { transform: scale(15);  filter: brightness(8); }
+}
+@keyframes lab-dive-ui {
+  0%   { opacity: 1; transform: scale(1); }
+  40%  { opacity: 0; transform: scale(1.25); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+@keyframes lab-dive-flash {
+  0%, 70% { opacity: 0; }
+  100%    { opacity: 1; }
+}
+
+/* the scene flies in toward the hatch */
+.lab-diving > div:first-child {
+  transform-origin: 50% 72%;
+  animation: lab-dive 0.82s cubic-bezier(0.5, 0, 0.85, 0.3) forwards;
+}
+/* copy, nav, grain fall away */
+.lab-diving > div:not(:first-child):not(.lab-dive-flash) {
+  animation: lab-dive-ui 0.5s ease forwards;
+  pointer-events: none;
+}
+/* white threshold flash painted last */
+.lab-dive-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 72%, #f2f4ec 0%, #e2e4dc 40%, #aeb6a4 100%);
+  opacity: 0;
+  animation: lab-dive-flash 0.82s ease-in forwards;
+}
+
+/* paper grain over the whole scene — heavier now for a grittier, aged surface */
 .lab-grain {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.13;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   mix-blend-mode: multiply;
   animation: lab-drift 9s linear infinite;
 }

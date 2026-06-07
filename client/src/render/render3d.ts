@@ -177,7 +177,13 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   const M = 70; // overscan so the rotated/shifted frame never shows an edge
 
   const eyeX = gs.camx + 0.5, eyeY = gs.camy + 0.5, ang = gs.faceA;
-  const FOV = Math.PI / 2.6, half = Math.tan(FOV / 2);
+  // aspect-aware horizontal FOV: widen it a touch on tall/narrow (portrait) screens
+  // so the first-person view isn't a claustrophobic "mail slot" — but only gently,
+  // since a strong widen reads as crowded/wide-angle and crams extra skyline in.
+  // Clamped to a small boost; stays 1 (the tuned ~69deg) at the reference aspect and
+  // on wider screens. Bump the cap (1.1) for more portrait width, drop to 1 for off.
+  const fovBoost = Math.min(1.1, Math.max(1, 1.25 / (W / H)));
+  const FOV = (Math.PI / 2.6) * fovBoost, half = Math.tan(FOV / 2);
   // sun/moon world direction (shared by the sky and the directional wall lighting)
   const sunAz = (tw.sunAz == null ? 30 : tw.sunAz) * 0.0174533;
   const sunEl = tw.sunHeight == null ? 0.32 : tw.sunHeight;
@@ -351,7 +357,11 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       const hMul = tw.spireHeight == null ? 1 : tw.spireHeight;
       const tall = H * (0.2 + 0.26 * near) * s.h * hMul;   // tall enough that the top clears the wall
       const topY = baseY - tall;
-      const wBot = W * (0.016 + 0.03 * near) * s.w, wTop = wBot * 0.34;
+      // width keyed to the tower's OWN height (not viewport width) so it holds a
+      // believable ~7:1 tower aspect on any screen instead of going needle-thin in
+      // portrait, where viewport-width-scaled bars collapse. (tuned to match the
+      // prior desktop width at the reference aspect.)
+      const wBot = tall * 0.13 * s.w, wTop = wBot * 0.34;
       const lean = s.lean * tall;
       // solid hazy silhouette — color blended toward the sky/fog so it still reads
       // atmospheric, but drawn OPAQUE so it always occludes the sun/moon behind it.

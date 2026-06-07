@@ -6,6 +6,7 @@
 // to a coarse pointer (swipe copy instead of arrow/WASD keys).
 
 import { theme } from '../theme'
+import { useMediaQuery } from '../lib/useMediaQuery'
 
 const hud = theme.hud
 
@@ -13,6 +14,9 @@ export function Hud(
   { steps, charted, reached, hint, touch, onExit }:
   { steps: number; charted: number; reached: boolean; hint: boolean; touch: boolean; onExit: () => void },
 ) {
+  // narrow phones: the three letter-spaced columns collide, so shed the center
+  // flavor text and the date line, leaving just back (left) + score (right).
+  const compact = useMediaQuery('(max-width: 560px)');
   return (
     <>
       {/* top HUD bar — text shadowed so it stays readable over a bright daytime view */}
@@ -23,15 +27,17 @@ export function Hud(
         <button onClick={onExit} title="Back to menu"
           style={{ pointerEvents: 'auto', cursor: 'pointer', background: 'none', border: 'none', padding: 0,
             textAlign: 'left', lineHeight: 1.4, font: 'inherit', color: 'inherit', textShadow: 'inherit' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, letterSpacing: '0.38em', color: hud.title, fontWeight: 700 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, letterSpacing: compact ? '0.22em' : '0.38em', color: hud.title, fontWeight: 700 }}>
             <span style={{ fontSize: 17, fontWeight: 400, letterSpacing: 0 }}>‹</span>LABYRINTH
           </div>
-          <div style={{ fontSize: 11, letterSpacing: '0.2em', color: hud.dim }}>DAILY MAZE · 2026-06-02</div>
+          {!compact && <div style={{ fontSize: 11, letterSpacing: '0.2em', color: hud.dim }}>DAILY MAZE · 2026-06-02</div>}
         </button>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 11, letterSpacing: '0.28em', color: hud.secondary }}>FIND THE EXIT</div>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', color: hud.dim }}>NO ONE HAS YET</div>
-        </div>
+        {!compact && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.28em', color: hud.secondary }}>FIND THE EXIT</div>
+            <div style={{ fontSize: 11, letterSpacing: '0.18em', color: hud.dim }}>NO ONE HAS YET</div>
+          </div>
+        )}
         {/* in dev the Tweaks FAB sits in this corner, so drop the stats clear of it; in prod the FAB is gated out */}
         <div style={{ textAlign: 'right', lineHeight: 1.5, marginTop: import.meta.env.DEV ? 40 : 0 }}>
           <div style={{ fontSize: 11, letterSpacing: '0.18em', color: hud.secondary }}>{steps} STEPS · {charted}% CHARTED</div>

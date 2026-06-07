@@ -20,12 +20,14 @@ export type CorridorTweaks = {
   ivySat: number;     // 0..1.5 ivy saturation (1 = as-authored, <1 = greyer)
 };
 
+// Baked from the dialed-in tuning panel: edges go full black and the dark
+// breathes hard for maximum dread.
 export const CORRIDOR_DEFAULTS: CorridorTweaks = {
   vigInner: 0,
   vigMid: 95,
   vigMidA: 1,
-  vigEdgeA: 0,
-  breathe: 0,
+  vigEdgeA: 1,
+  breathe: 1,
   ivyGlow: 0,
   ivySat: 0,
 };

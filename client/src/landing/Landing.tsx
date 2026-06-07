@@ -17,15 +17,27 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
   // single mobile breakpoint; re-renders on resize/rotate so the CSS-laid-out
   // landing re-fits instead of clipping (the game canvas already self-heals).
   const mobile = useMediaQuery('(max-width: 480px)');
+  // Towers stretch into needles whenever the viewport is portrait-ish, not only at
+  // the phone breakpoint — drive their aspect handling off the actual shape.
+  const portrait = useMediaQuery('(max-aspect-ratio: 4/3)');
   const [view, setView] = useState(() => {
     const h = (location.hash || '').replace('#', '');
     return h === 'board' ? 'board' : (localStorage.getItem('lab_view') === 'board' ? 'board' : 'play');
   });
   const [help, setHelp] = useState(false);
-  const go = (v: string) => { setView(v); try { localStorage.setItem('lab_view', v); location.hash = v; } catch (e) {} };
+  const [diving, setDiving] = useState(false);
+  const go = (v: string) => { setView(v); try { localStorage.setItem('lab_view', v); location.hash = v; } catch { /* ignore */ } };
+  // ENTER doesn't navigate instantly — it dives down the corridor into the floor
+  // hatch, then hands off to the game once the flight-in beat has played.
+  const dive = () => {
+    if (diving) return;
+    setDiving(true);
+    setTimeout(onEnter, 820); // match the lab-dive duration in landing.css
+  };
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--sky)', overflow: 'hidden' }}>
-      <Corridor dim={view === 'board'} t={cor} />
+    <div className={diving ? 'lab-diving' : undefined}
+      style={{ position: 'fixed', inset: 0, background: 'var(--sky)', overflow: 'hidden' }}>
+      <Corridor dim={view === 'board'} t={cor} portrait={portrait} />
 
       {/* top nav — insets shrink on mobile and add safe-area so it clears the notch */}
       <div style={{ position: 'absolute', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -43,10 +55,11 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
       {/* views */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
-        {view === 'play' ? <PlayView onEnter={onEnter} mobile={mobile} /> : <LeaderboardView mobile={mobile} />}
+        {view === 'play' ? <PlayView onEnter={dive} mobile={mobile} /> : <LeaderboardView mobile={mobile} />}
       </div>
 
       <div className="lab-grain" style={{ zIndex: 12 }}></div>
+      {diving && <div className="lab-dive-flash"></div>}
       <RulesModal open={help} onClose={() => setHelp(false)} />
       {/* dev-only tuning rig; the baked CORRIDOR_DEFAULTS ship in production */}
       {import.meta.env.DEV && <CorridorTweaks t={cor} setTweak={setCor} />}

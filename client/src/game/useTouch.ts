@@ -9,8 +9,9 @@
 // frame, not absolute compass directions:
 //   swipe up    -> step forward along facing   (ArrowUp)
 //   swipe down  -> step back                    (ArrowDown)
-//   swipe left  -> turn left 90deg, no move     (ArrowLeft)
-//   swipe right -> turn right 90deg, no move    (ArrowRight)
+//   swipe left  -> turn right 90deg, no move    (ArrowRight)
+//   swipe right -> turn left 90deg, no move     (ArrowLeft)
+// Turns use the "drag the world" feel: dragging the view left swings you right.
 //
 // Each completed swipe is ONE discrete action (matching one keypress), since
 // turns/steps are discrete on the grid. Listeners are attached imperatively with
