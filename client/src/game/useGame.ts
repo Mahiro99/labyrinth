@@ -10,6 +10,8 @@ import { drawFirstPerson, drawMinimap } from '../render'
 import { useTweaks } from '../tweaks'
 import { TWEAK_DEFAULTS, DAILY_SEED, MAZE_CELLS, KEY_DIR } from './defaults'
 import { useKeyboard } from './useKeyboard'
+import { useTouch } from './useTouch'
+import { useMediaQuery } from '../lib/useMediaQuery'
 import type { GameState, Tweaks } from '../types'
 
 export function useGame() {
@@ -23,6 +25,10 @@ export function useGame() {
 
   const [hud, setHud] = useState({ steps: 0, charted: 0, reached: false });
   const [hint, setHint] = useState(true);
+  // touch (coarse-pointer) drives swipe-appropriate control hints, not the input
+  // wiring itself — swipe listeners are always attached and simply never fire on a
+  // mouse-only device.
+  const touch = useMediaQuery('(pointer: coarse)');
 
   // the small always-on light: a tile or so in each open direction (v13)
   function reveal(gs: GameState, now: number) {
@@ -95,12 +101,15 @@ export function useGame() {
     setHint(true);
   }, []);
 
-  // keyboard: held-keys ref lives in the hook; the immediate first step on a
-  // fresh keydown is fired here (same 130ms throttle as before).
-  const keysRef = useKeyboard((key) => {
+  // one input resolver, shared by keyboard + touch: the immediate first step on a
+  // fresh press is fired here (130ms throttle); held-key repeat lives in the loop.
+  const onPress = (key: string) => {
     const gs = gsRef.current;
     if (gs) { const now = performance.now(); if (now - gs.lastMove > 130) { if (applyKey(gs, key, now)) gs.lastMove = now; } }
-  });
+  };
+  const keysRef = useKeyboard(onPress);
+  // swipe on the canvas -> the same synthetic arrow keys (relative turn/move model)
+  useTouch(canvasRef, onPress);
 
   // main loop
   useEffect(() => {
@@ -178,5 +187,5 @@ export function useGame() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  return { canvasRef, miniRef, hud, hint, t, setTweak };
+  return { canvasRef, miniRef, hud, hint, touch, t, setTweak };
 }

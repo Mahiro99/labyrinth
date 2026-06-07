@@ -17,6 +17,11 @@ import { getWorld } from '../worlds'
 import { bugs, clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
 import { QUANTITY, qty } from './quantity'
 
+// coarse pointer => touch device, so the in-canvas control hint should say "swipe"
+// rather than naming arrow/WASD keys the player doesn't have. Read once at module
+// load (pointer type doesn't change at runtime).
+const COARSE_POINTER = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
+
 // cheap deterministic hash -> 0..1 (for vine placement)
 function _h2(a: number, b: number): number { let t = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; t = Math.imul(t ^ (t >>> 13), 1274126177); t ^= t >>> 16; return ((t >>> 0) % 100003) / 100003; }
 // a small pointed leaf (teardrop), tilted — for the Ivy vine style
@@ -1138,6 +1143,7 @@ function drawCompass(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   ctx.shadowColor = daylight ? theme.compass.dayHalo : theme.compass.nightHalo;
   ctx.shadowBlur = 6;
   ctx.fillStyle = daylight ? theme.compass.day : theme.compass.night;
-  ctx.fillText('▲ FACING ' + compass[ci] + '  ·  ← → TURN  ·  ↑ ↓ MOVE', W / 2, H - 22);
+  const controls = COARSE_POINTER ? 'SWIPE TO MOVE · ← → SWIPE TO TURN' : '← → TURN  ·  ↑ ↓ MOVE';
+  ctx.fillText('▲ FACING ' + compass[ci] + '  ·  ' + controls, W / 2, H - 22);
   ctx.restore();
 }

@@ -1,6 +1,13 @@
 /* Global resets for the Labyrinth canvas SPA (ported from Labyrinth.html). */
 * {
   box-sizing: border-box;
+  /* kill the grey/blue flash box that fires on every tap of the dark UI */
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* dark app: align native controls, scrollbars, and overscroll glow to dark mode */
+  color-scheme: dark;
 }
 
 html,
@@ -10,6 +17,9 @@ body {
   height: 100%;
   background: #06080c;
   overscroll-behavior: none;
+  /* a game/cinematic UI — long-press text selection is unwanted */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #root {
@@ -18,8 +28,22 @@ body {
 
 canvas {
   image-rendering: -webkit-optimize-contrast;
+  /* swipe/pinch over the game canvas should drive movement, not scroll/zoom the page */
+  touch-action: none;
 }
 
 ::selection {
   background: rgba(124, 156, 255, 0.3);
+}
+
+/* respect motion-sensitivity / save battery: tame the always-running grain,
+   breathing vignette, and corridor sway for users who ask for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

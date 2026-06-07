@@ -8,18 +8,20 @@ import { Hud } from './Hud'
 import { Minimap } from './Minimap'
 import { GameTweaks } from './GameTweaks'
 
-export default function Game() {
-  const { canvasRef, miniRef, hud, hint, t, setTweak } = useGame();
+export default function Game({ onExit }: { onExit: () => void }) {
+  const { canvasRef, miniRef, hud, hint, touch, t, setTweak } = useGame();
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: getWorld(t.world, t.mrTime, t.stainAmount, t.crackAmount).fogCss, color: theme.hud.secondary, fontFamily: theme.font.mono, overflow: 'hidden' }}>
-      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
+      {/* touchAction:none so swipe-to-move isn't eaten by page scroll / pinch-zoom */}
+      <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />
 
-      <Hud steps={hud.steps} charted={hud.charted} reached={hud.reached} hint={hint} />
+      <Hud steps={hud.steps} charted={hud.charted} reached={hud.reached} hint={hint} touch={touch} onExit={onExit} />
 
       <Minimap miniRef={miniRef} show={t.showMinimap} />
 
-      <GameTweaks t={t} setTweak={setTweak} />
+      {/* dev-only tuning panel; gated like the landing's CorridorTweaks so it never ships to players */}
+      {import.meta.env.DEV && <GameTweaks t={t} setTweak={setTweak} />}
     </div>
   );
 }

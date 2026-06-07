@@ -12,7 +12,8 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
     <div className="lab-modal-back" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 560, maxWidth: '88%',
         background: 'var(--card)', border: '1px solid rgba(226,228,220,0.16)',
-        borderRadius: 5, boxShadow: '0 40px 110px rgba(2,3,2,0.6)', overflow: 'hidden',
+        borderRadius: 5, boxShadow: '0 40px 110px rgba(2,3,2,0.6)',
+        maxHeight: '86vh', overflowY: 'auto', overscrollBehavior: 'contain',
         fontFamily: "'IBM Plex Mono', monospace", animation: 'lab-rise 0.3s ease both' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '16px 22px', borderBottom: '1px solid rgba(226,228,220,0.12)' }}>
@@ -20,8 +21,10 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }}></span>
             <span style={{ color: 'var(--ink)', fontSize: 13, letterSpacing: '0.22em' }}>HOW TO PLAY</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ink-soft)',
-            cursor: 'pointer', fontSize: 18, fontFamily: 'inherit', lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} title="Close" aria-label="Close"
+            style={{ background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer',
+              fontSize: 18, fontFamily: 'inherit', lineHeight: 1, width: 44, height: 44, marginRight: -10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <div style={{ padding: '22px 24px 8px' }}>
           {steps.map((s, i) => (
