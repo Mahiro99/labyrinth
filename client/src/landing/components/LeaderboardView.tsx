@@ -51,7 +51,7 @@ export function LeaderboardView() {
           marginBottom: 12, flexShrink: 0 }}>
           <div style={{ color: 'var(--ink-soft)', fontSize: 12, letterSpacing: '0.34em',
             whiteSpace: 'nowrap' }}>
-            DAILY MAZE · NO. {DAY_NO}</div>
+            NO. {DAY_NO}</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, whiteSpace: 'nowrap' }}>
             <span style={{ color: 'var(--ink-soft)', fontSize: 11, letterSpacing: '0.2em' }}>RESETS IN</span>
             <span style={{ color: 'var(--vine-deep)', fontSize: 17, letterSpacing: '0.08em',

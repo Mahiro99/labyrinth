@@ -1,7 +1,10 @@
 // Corridor.tsx — the corridor scene: overcast concrete room, sandy floor, far towers, ivy.
 import { Ivy } from './Ivy';
+import { CORRIDOR_DEFAULTS, vignetteCss } from '../corridorTweaks';
+import type { CorridorTweaks } from '../corridorTweaks';
 
-export function Corridor({ dim = false }: { dim?: boolean }) {
+export function Corridor({ dim = false, t = CORRIDOR_DEFAULTS }: { dim?: boolean; t?: CorridorTweaks }) {
+  const vig = vignetteCss(t);
   const wall = (clip: string, grad: string, extra?: React.CSSProperties): React.CSSProperties =>
     ({ position: 'absolute', inset: 0, clipPath: clip, background: grad, ...extra });
   const streak = 'repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 7px, rgba(60,64,58,0.035) 7px 8px)';
@@ -70,7 +73,9 @@ export function Corridor({ dim = false }: { dim?: boolean }) {
         </g>
       </svg>
 
-      <Ivy />
+      <div style={{ opacity: t.ivyGlow, filter: `saturate(${t.ivySat})` }}>
+        <Ivy />
+      </div>
 
       {/* cold mist pooling and creeping up from the void floor */}
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '40%',
@@ -80,11 +85,11 @@ export function Corridor({ dim = false }: { dim?: boolean }) {
 
       {/* suffocating dark — hard tunnel-vision closing in from every edge */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(86% 70% at 50% 47%, transparent 22%, rgba(2,3,2,0.72) 72%, rgba(0,0,0,0.95) 100%)' }}></div>
+        background: vig.static }}></div>
       {/* the dark breathing — slow pulse so the walls feel like they press in */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
         animation: 'lab-suffocate 9s ease-in-out infinite',
-        background: 'radial-gradient(68% 54% at 50% 47%, transparent 26%, rgba(0,0,0,0.6) 100%)' }}></div>
+        background: vig.breathe }}></div>
     </div>
   );
 }

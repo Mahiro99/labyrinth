@@ -10,17 +10,11 @@ export function PlayView({ onEnter }: { onEnter: () => void }) {
       fontFamily: "'IBM Plex Mono', monospace", animation: 'lab-fade 0.5s ease both', padding: '0 24px' }}>
       <div style={{ color: 'var(--ink-soft)', fontSize: 12, letterSpacing: '0.4em', marginBottom: 26,
         whiteSpace: 'nowrap' }}>
-        DAILY MAZE · NO. {DAY_NO}
+        NO. {DAY_NO}
       </div>
-      <h1 style={{ margin: 0, color: 'var(--ink)', fontFamily: "'Fraunces', serif", fontWeight: 400,
+      <h1 style={{ margin: '0 0 46px', color: 'var(--ink)', fontFamily: "'Fraunces', serif", fontWeight: 400,
         fontSize: 'clamp(48px, 9vw, 96px)', letterSpacing: '0.03em', lineHeight: 1, whiteSpace: 'nowrap',
-        textShadow: '0 2px 38px rgba(6,8,6,0.9), 0 1px 4px rgba(6,8,6,0.5)' }}>Find the exit.</h1>
-      <p style={{ color: '#cdd1c6', fontSize: 14, fontWeight: 400, letterSpacing: '0.04em',
-        maxWidth: 450, lineHeight: 1.75, margin: '24px 0 46px',
-        textShadow: '0 1px 3px rgba(4,6,4,0.95), 0 2px 22px rgba(4,6,4,0.85)' }}>
-        One maze a day, in the dark, lit only by the lamp you carry.
-        Fewest steps to the way out. Everyone walks the same walls.
-      </p>
+        textShadow: '0 2px 38px rgba(6,8,6,0.9), 0 1px 4px rgba(6,8,6,0.5)' }}>ESCAPE.</h1>
       <button onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
         onClick={() => onEnter()}
         style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, letterSpacing: '0.3em',

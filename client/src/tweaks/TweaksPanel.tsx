@@ -9,14 +9,18 @@ import type { ReactNode } from 'react'
 import { theme } from '../theme'
 import { TWEAKS_STYLE } from './styles'
 
-// Vertical dock corner, shared with the panel CSS — flip theme.panel.anchor to
-// move both the FAB and the panel between top-right and bottom-right.
-const ANCHOR: 'top' | 'bottom' = theme.panel.anchor
-
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
 // Floating shell. The FAB is always shown (this app is always top-level).
 // Closing just hides the panel; reopen via the FAB or the 'T' key.
-function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?: ReactNode }) {
+function TweaksPanel({ title = 'Tweaks', anchor, children }:
+  { title?: string; anchor?: 'top' | 'bottom'; children?: ReactNode }) {
+  // Vertical dock corner. Defaults to the shared theme corner; pass `anchor` to
+  // override per-instance — the landing corridor docks 'bottom' to clear the top
+  // nav, while the game stays 'top' where its HUD already leaves room (and its
+  // bottom-right holds the minimap). OPP is the corner we must pin to 'auto' so
+  // the CSS default corner doesn't also apply and stretch the element.
+  const ANCHOR: 'top' | 'bottom' = anchor ?? theme.panel.anchor
+  const OPP: 'top' | 'bottom' = ANCHOR === 'top' ? 'bottom' : 'top'
   const [open, setOpen] = useState(false)
   const dragRef = useRef<HTMLDivElement | null>(null)
   const offsetRef = useRef<{ x: number; y: number }>({ x: 16, y: 16 })
@@ -36,7 +40,7 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
     }
     panel.style.right = offsetRef.current.x + 'px'
     panel.style.setProperty(ANCHOR, offsetRef.current.y + 'px')
-  }, [])
+  }, [ANCHOR])
 
   useEffect(() => {
     if (!open) return
@@ -96,6 +100,7 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
       <>
         <style>{TWEAKS_STYLE}</style>
         <button className="twk-fab" data-omelette-chrome="" title="Tweaks (press T)"
+                style={{ [ANCHOR]: 16, [OPP]: 'auto' }}
                 onClick={() => setOpen(true)}>✦ Tweaks</button>
       </>
     )
@@ -104,7 +109,8 @@ function TweaksPanel({ title = 'Tweaks', children }: { title?: string; children?
     <>
       <style>{TWEAKS_STYLE}</style>
       <div ref={dragRef} className="twk-panel" data-omelette-chrome=""
-           style={{ right: offsetRef.current.x, [ANCHOR]: offsetRef.current.y }}>
+           style={{ right: offsetRef.current.x, [ANCHOR]: offsetRef.current.y,
+                    [OPP]: 'auto', transformOrigin: `${ANCHOR} right` }}>
         <div className="twk-hd" onMouseDown={onDragStart}>
           <b>{title}</b>
           <button className="twk-x" aria-label="Close tweaks"
