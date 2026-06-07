@@ -14,7 +14,7 @@ import type { GameState, Tweaks } from '../types'
 import { hexToRgb, mix, rgba } from '../lib/color'
 import { theme } from '../theme'
 import { getWorld } from '../worlds'
-import { clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
+import { bugs, clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
 import { QUANTITY, qty } from './quantity'
 
 // cheap deterministic hash -> 0..1 (for vine placement)
@@ -223,6 +223,7 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   drawFloorGrates(ctx, rc);
   drawPebbles(ctx, rc);
   drawGroundLife(ctx, rc);
+  drawBugs(ctx, rc);
   drawDriftLeaves(ctx, rc);
   drawVines(ctx, rc);
 
@@ -720,16 +721,69 @@ function drawGroundLife(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       if (cDepth[ci] !== undefined && depth > cDepth[ci] + 0.02) continue;
       const lf = lightAt(depth);
       const scale = (5.5 / depth) * p.sz;
+      const ph = (wx * 0.7 + wy * 1.3);
+      const lean = windAt(1, ph) * 0.12;                          // shared wind sway
+      const green = mix(world.fog, p.hue < 0.5 ? [88, 116, 52] : [70, 102, 44], lf);
       if (p.kind === 'grass') {
-        const ph = (wx * 0.7 + wy * 1.3);
-        const lean = windAt(1, ph) * 0.12;
         for (let b = 0; b < p.blades; b++) {
           const off = (b - p.blades / 2) * scale * 0.5;
           const h = scale * (2.4 + (b % 2) * 0.7);
-          const g1 = mix(world.fog, p.hue < 0.5 ? [88, 116, 52] : [70, 102, 44], lf);
-          ctx.strokeStyle = rgba(g1, 0.92); ctx.lineWidth = Math.max(0.5, scale * 0.32);
+          ctx.strokeStyle = rgba(green, 0.92); ctx.lineWidth = Math.max(0.5, scale * 0.32);
           ctx.beginPath(); ctx.moveTo(sx + off, sy);
           ctx.quadraticCurveTo(sx + off + lean * h * 0.5, sy - h * 0.6, sx + off + lean * h, sy - h); ctx.stroke();
+        }
+      } else if (p.kind === 'broadleaf') {
+        // a few wide rounded leaves fanning up from a short central stem (dock/plantain)
+        const n = 3 + (p.blades % 2);
+        const stemH = scale * 2.0;
+        ctx.strokeStyle = rgba(mix(green, [0, 0, 0], 0.2), 0.9); ctx.lineWidth = Math.max(0.6, scale * 0.3);
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + lean * stemH, sy - stemH); ctx.stroke();
+        ctx.fillStyle = rgba(green, 0.9);
+        for (let b = 0; b < n; b++) {
+          const a2 = (b - (n - 1) / 2) * 0.6 + lean;
+          const lh = scale * (2.2 + (b % 2) * 0.6);
+          ctx.save(); ctx.translate(sx, sy); ctx.rotate(a2);
+          ctx.beginPath(); ctx.ellipse(0, -lh * 0.5, scale * 0.7, lh * 0.5, 0, 0, 7); ctx.fill();
+          ctx.restore();
+        }
+      } else if (p.kind === 'clover') {
+        // three round lobes on short stems (trefoil)
+        const stemH = scale * 1.8;
+        for (let b = 0; b < 3; b++) {
+          const a2 = (b - 1) * 0.5 + lean;
+          const tx = sx + Math.sin(a2) * stemH, ty = sy - Math.cos(a2) * stemH;
+          ctx.strokeStyle = rgba(mix(green, [0, 0, 0], 0.15), 0.85); ctx.lineWidth = Math.max(0.5, scale * 0.22);
+          ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(tx, ty); ctx.stroke();
+          ctx.fillStyle = rgba(green, 0.92);
+          ctx.beginPath(); ctx.arc(tx, ty, scale * 0.55, 0, 7); ctx.fill();
+        }
+      } else if (p.kind === 'fern') {
+        // a feathery frond: curved spine + paired side leaflets
+        const h = scale * 3.2;
+        const tipx = sx + lean * h, tipy = sy - h;
+        ctx.strokeStyle = rgba(green, 0.9); ctx.lineWidth = Math.max(0.5, scale * 0.26);
+        ctx.beginPath(); ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(sx + lean * h * 0.5, sy - h * 0.6, tipx, tipy); ctx.stroke();
+        ctx.lineWidth = Math.max(0.4, scale * 0.16);
+        for (let s = 1; s <= 4; s++) {
+          const f = s / 5;
+          const mx = sx + (tipx - sx) * f, my = sy + (tipy - sy) * f;
+          const ll = scale * 0.9 * (1 - f * 0.5);
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - ll, my - ll * 0.5); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + ll, my - ll * 0.5); ctx.stroke();
+        }
+      } else if (p.kind === 'flower') {
+        // thin stems each capped with a tiny bloom (hue picks the petal colour)
+        const bloom = p.hue < 0.34 ? [220, 210, 120] : (p.hue < 0.67 ? [212, 150, 178] : [228, 228, 232]);
+        for (let b = 0; b < 2; b++) {
+          const off = (b - 0.5) * scale * 0.7;
+          const h = scale * (2.6 + b * 0.5);
+          const tx = sx + off + lean * h, ty = sy - h;
+          ctx.strokeStyle = rgba(green, 0.85); ctx.lineWidth = Math.max(0.5, scale * 0.22);
+          ctx.beginPath(); ctx.moveTo(sx + off, sy);
+          ctx.quadraticCurveTo(sx + off + lean * h * 0.5, sy - h * 0.6, tx, ty); ctx.stroke();
+          ctx.fillStyle = rgba(mix(world.fog, bloom, lf), 0.92);
+          ctx.beginPath(); ctx.arc(tx, ty, scale * 0.45, 0, 7); ctx.fill();
         }
       } else {
         const lc = mix(world.fog, p.hue < 0.4 ? [120, 110, 56] : (p.hue < 0.7 ? [96, 116, 54] : [134, 96, 50]), lf);
@@ -739,6 +793,68 @@ function drawGroundLife(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
         ctx.beginPath(); ctx.moveTo(-scale * 1.4, 0); ctx.lineTo(scale * 1.4, 0); ctx.stroke();
         ctx.restore();
       }
+    }
+  }
+}
+
+// ---- GROUND BUGS: small ants/beetles that WANDER across the floor. World-anchored
+// like ground life, but each bug's position meanders along a smooth, time-driven
+// path (two summed sinusoids per axis → an organic, non-obvious-loop crawl), and the
+// body is rotated to face its travel direction. Same floor projection + occlusion. ----
+function drawBugs(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
+  const { world, tw, W, H, M, eyeX, eyeY, ang, half, step, cDepth, lightAt, now } = rc;
+  if (world.id === 'mazerunner' && tw.bugs) {
+    const bg = bugs(); const P = 5, ca = Math.cos(ang), sa = Math.sin(ang);
+    const nDraw = Math.min(bg.length, qty(tw.bugAmt == null ? 0.3 : tw.bugAmt, QUANTITY.bugs));
+    const R = 0.07;                                    // wander radius (unit-tile fraction)
+    for (let i = 0; i < nDraw; i++) {
+      const b = bg[i];
+      const t = now * 0.00016 * b.spd;
+      // smooth meander: position = anchor + two summed sinusoids per axis
+      const ox = Math.cos(t + b.ph) + 0.6 * Math.cos(2.3 * t + b.ph2);
+      const oy = Math.sin(t + b.ph) + 0.6 * Math.sin(2.3 * t + b.ph2);
+      // velocity (analytic derivative) → screen heading so the body faces travel
+      const vx = -Math.sin(t + b.ph) - 1.38 * Math.sin(2.3 * t + b.ph2);
+      const vy = Math.cos(t + b.ph) + 1.38 * Math.cos(2.3 * t + b.ph2);
+      const bx = b.ux + ox * R, by = b.uy + oy * R;
+      const wx = bx * P + P * Math.round((eyeX - bx * P) / P);
+      const wy = by * P + P * Math.round((eyeY - by * P) / P);
+      const dxw = wx - eyeX, dyw = wy - eyeY;
+      const depth = dxw * ca + dyw * sa; if (depth <= 0.2 || depth > world.viewDist) continue;
+      const lateral = -dxw * sa + dyw * ca;
+      const sx = W / 2 + (lateral / (depth * half)) * (W / 2);
+      if (sx < -30 || sx > W + 30) continue;
+      const sy = H / 2 + 0.5 * (H * 0.92) / depth;
+      if (sy > H + M) continue;
+      const ci = Math.max(0, Math.min(cDepth.length - 1, Math.round(sx / step)));
+      if (cDepth[ci] !== undefined && depth > cDepth[ci] + 0.02) continue;
+      const lf = lightAt(depth);
+      const scale = (5.5 / depth) * b.sz * 0.5;         // bugs are small
+      const srot = Math.atan2(-(vx * ca + vy * sa), -vx * sa + vy * ca); // travel dir on screen
+      const body = mix(world.fog, b.kind === 'ant' ? [40, 28, 22] : [30, 30, 34], lf);
+      ctx.save(); ctx.translate(sx, sy); ctx.rotate(srot); ctx.fillStyle = rgba(body, 0.92);
+      if (b.kind === 'ant') {
+        // three segments along +x: abdomen, thorax, head
+        ctx.beginPath(); ctx.ellipse(-scale * 1.1, 0, scale * 0.6, scale * 0.5, 0, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, 0, scale * 0.4, scale * 0.35, 0, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(scale * 1.0, 0, scale * 0.45, scale * 0.4, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = rgba(body, 0.7); ctx.lineWidth = Math.max(0.4, scale * 0.14);
+        for (let l = -1; l <= 1; l++) {
+          ctx.beginPath(); ctx.moveTo(l * scale * 0.5, 0); ctx.lineTo(l * scale * 0.5 - scale * 0.3, -scale * 0.9); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(l * scale * 0.5, 0); ctx.lineTo(l * scale * 0.5 - scale * 0.3, scale * 0.9); ctx.stroke();
+        }
+      } else {
+        // beetle: one rounded shell + a center seam
+        ctx.beginPath(); ctx.ellipse(0, 0, scale * 1.3, scale * 0.85, 0, 0, 7); ctx.fill();
+        ctx.strokeStyle = rgba(mix(body, [0, 0, 0], 0.5), 0.6); ctx.lineWidth = Math.max(0.4, scale * 0.16);
+        ctx.beginPath(); ctx.moveTo(-scale * 1.1, 0); ctx.lineTo(scale * 1.1, 0); ctx.stroke();
+        ctx.lineWidth = Math.max(0.4, scale * 0.14);
+        for (let l = -1; l <= 1; l++) {
+          ctx.beginPath(); ctx.moveTo(l * scale * 0.6, -scale * 0.7); ctx.lineTo(l * scale * 0.6 - scale * 0.3, -scale * 1.2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(l * scale * 0.6, scale * 0.7); ctx.lineTo(l * scale * 0.6 - scale * 0.3, scale * 1.2); ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
   }
 }

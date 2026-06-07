@@ -122,6 +122,8 @@ export interface Tweaks {
   driftAmt: number
   driftDir: number
   driftSpeed: number
+  bugs: boolean
+  bugAmt: number
   floorDetail: boolean
   grateAmt: number
   stainAmount: number

@@ -46,6 +46,8 @@ export const TWEAK_DEFAULTS: Tweaks = {
   "driftAmt": 0.24,
   "driftDir": 45,
   "driftSpeed": 1,
+  "bugs": true,
+  "bugAmt": 0.3,
   "floorDetail": true,
   "grateAmt": 0.16,
   "stainAmount": 1,

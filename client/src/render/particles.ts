@@ -12,6 +12,7 @@ let _pebblesCache: { ux: number; uy: number; gx: number; gy: number; sz: number;
 let _rainCache: { x: number; y: number; spd: number; len: number }[] | null = null
 let _splashesCache: { x: number; y: number; ph: number; rate: number }[] | null = null
 let _groundLifeCache: { ux: number; uy: number; kind: string; sz: number; rot: number; blades: number; hue: number }[] | null = null
+let _bugsCache: { ux: number; uy: number; spd: number; sz: number; ph: number; ph2: number; kind: string }[] | null = null
 let _driftLeavesCache: { ux: number; uy: number; uz: number; fall: number; sway: number; sz: number; spin: number }[] | null = null
 let _cloudsCache: { az: number; el: number; sz: number; spd: number; puff: number }[] | null = null
 let _spiresCache: { az: number; dist: number; shape: string; w: number; h: number; lean: number; seed: number }[] | null = null
@@ -66,15 +67,30 @@ export function splashes() {
   _splashesCache = a; return a;
 }
 
-// seeded ground-life scatter — grass tufts + fallen leaves on the floor plane
+// seeded ground-life scatter — a MIX of weed silhouettes + fallen leaves on the
+// floor plane, so it doesn't read as one repeated tuft. The weighted `kinds` table
+// keeps grass blades common while sprinkling in broadleaf/clover/fern/flower; each
+// kind is drawn differently in drawGroundLife().
 export function groundLife() {
   if (_groundLifeCache) return _groundLifeCache;
   const a = [];
+  const kinds = ['grass', 'grass', 'broadleaf', 'clover', 'fern', 'flower', 'leaf', 'leaf'];
   for (let i = 0; i < 600; i++) {
-    const kind = Math.random() < 0.62 ? 'grass' : 'leaf';
+    const kind = kinds[(Math.random() * kinds.length) | 0];
     a.push({ ux: Math.random(), uy: Math.random(), kind, sz: 0.6 + Math.random() * 1.1, rot: Math.random() * 3.14, blades: 3 + (Math.random() * 3 | 0), hue: Math.random() });
   }
   _groundLifeCache = a; return a;
+}
+// seeded ground bugs — world-anchored anchors that WANDER. The pool only stores an
+// anchor + per-bug phases/speed; the actual crawling path is computed each frame
+// from `now` in drawBugs (two summed sinusoids per axis → an organic meander).
+export function bugs() {
+  if (_bugsCache) return _bugsCache;
+  const a = [];
+  for (let i = 0; i < 60; i++) {
+    a.push({ ux: Math.random(), uy: Math.random(), spd: 0.6 + Math.random() * 0.9, sz: 0.7 + Math.random() * 0.7, ph: Math.random() * 7, ph2: Math.random() * 7, kind: Math.random() < 0.6 ? 'ant' : 'beetle' });
+  }
+  _bugsCache = a; return a;
 }
 // seeded drifting leaves — world-anchored motes that fall & blow with the wind
 export function driftLeaves() {

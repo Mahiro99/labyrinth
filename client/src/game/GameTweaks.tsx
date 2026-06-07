@@ -49,6 +49,8 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
         <TweakSlider label="Blow direction" value={t.driftDir} min={-180} max={180} step={15} onChange={(v) => setTweak('driftDir', v)} />
         <TweakSlider label="Blow speed" value={t.driftSpeed} min={0.1} max={3} step={0.1} onChange={(v) => setTweak('driftSpeed', v)} />
       </>}
+      <TweakToggle label="Bugs" value={t.bugs} onChange={(v) => setTweak('bugs', v)} />
+      {t.bugs && <TweakSlider label="Bug amount" value={t.bugAmt} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('bugAmt', v)} />}
 
       <TweakSection label="Walls" />
       <TweakSlider label="Staining" value={t.stainAmount} min={0} max={2} step={0.25} onChange={(v) => setTweak('stainAmount', v)} />

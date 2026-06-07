@@ -17,6 +17,7 @@ export interface QtySpec {
 export const QUANTITY = {
   pebbles: { peak: 760, gamma: 1.4 },
   groundLife: { peak: 600, gamma: 1.4 },
+  bugs: { peak: 40, gamma: 1.3 },
   driftLeaves: { peak: 400, gamma: 1.4 },
   stars: { peak: 760, gamma: 1.3 },
   clouds: { peak: 84, gamma: 1.3 },
