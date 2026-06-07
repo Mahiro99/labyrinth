@@ -1,0 +1,112 @@
+/* landing.css — palette + animations for the Labyrinth landing page.
+   Ported from the <style> block of Labyrinth Landing.html. */
+
+:root {
+  /* dusk-lamplit, pushed toward dread: sickly horizon, near-black void floor */
+  --sky: #10130d; /* near-black overcast */
+  --sky-hi: #4b5346; /* sickly pallid horizon glow behind the towers */
+  --concrete: #3f463b; /* lamp-lit wall */
+  --concrete-sh: #282d25; /* shadowed wall (deeper) */
+  --concrete-far: #2c322a; /* far wall — the way out barely glows */
+  --floor: #111309; /* blackish floor (far) */
+  --floor-hi: #080905; /* the void underfoot (near) */
+  --ink: #e2e4dc; /* primary light text */
+  --ink-soft: #9ba093; /* secondary grey (HUD) */
+  --ink-faint: #6c7165;
+  --vine: #8fb061;
+  --vine-deep: #aecb80; /* brighter moss so it reads on dark */
+  --vine-pale: #c4d8a4;
+  --accent: #9ec469; /* moss — interactive */
+  --accent-soft: #b4d489;
+  --you: #d8744a; /* terracotta map-marker pop */
+  --card: #20251e; /* dark card */
+  --line: rgba(226, 228, 220, 0.14);
+}
+
+@keyframes lab-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes lab-breathe {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
+@keyframes lab-drift {
+  0% { background-position: 0 0; }
+  100% { background-position: 240px 160px; }
+}
+@keyframes lab-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lab-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes lab-rowin {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes lab-sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50% { transform: rotate(1.2deg); }
+}
+@keyframes lab-suffocate {
+  0%, 100% { opacity: 0.5; transform: scale(1.07); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@keyframes lab-mist {
+  0%, 100% { opacity: 0.45; transform: translateY(7px); }
+  50% { opacity: 0.95; transform: translateY(0); }
+}
+@keyframes lab-eyeblink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  94%, 96% { transform: scaleY(0.06); }
+}
+@keyframes lab-eyeglow {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+@keyframes lab-cling {
+  0%, 100% { transform: rotate(-1.6deg) translateY(0); }
+  50% { transform: rotate(1.6deg) translateY(1px); }
+}
+@keyframes lab-lurk {
+  0%, 64%, 100% { transform: translateY(0); opacity: 1; }
+  80%, 86% { transform: translateY(-13px); opacity: 0.12; }
+}
+
+/* paper grain over the whole scene */
+.lab-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.13;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  animation: lab-drift 9s linear infinite;
+}
+
+.lab-modal-back {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(40, 42, 38, 0.42);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lab-fade 0.25s ease both;
+}
+
+/* thin scrollbar (e.g. the leaderboard list) — from Labyrinth Landing.html */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(226, 228, 220, 0.18);
+  border-radius: 8px;
+}

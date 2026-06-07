@@ -1,0 +1,25 @@
+/* Global resets for the Labyrinth canvas SPA (ported from Labyrinth.html). */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #06080c;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100%;
+}
+
+canvas {
+  image-rendering: -webkit-optimize-contrast;
+}
+
+::selection {
+  background: rgba(124, 156, 255, 0.3);
+}
