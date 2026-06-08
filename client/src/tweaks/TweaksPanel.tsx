@@ -12,8 +12,8 @@ import { TWEAKS_STYLE } from './styles'
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
 // Floating shell. The FAB is always shown (this app is always top-level).
 // Closing just hides the panel; reopen via the FAB or the 'T' key.
-function TweaksPanel({ title = 'Tweaks', anchor, children }:
-  { title?: string; anchor?: 'top' | 'bottom'; children?: ReactNode }) {
+function TweaksPanel({ title = 'Tweaks', anchor, children, hotkey = 't', fabLabel = '✦ Tweaks', fabStyle }:
+  { title?: string; anchor?: 'top' | 'bottom'; children?: ReactNode; hotkey?: string; fabLabel?: string; fabStyle?: React.CSSProperties }) {
   // Vertical dock corner. Defaults to the shared theme corner; pass `anchor` to
   // override per-instance — the landing corridor docks 'bottom' to clear the top
   // nav, while the game stays 'top' where its HUD already leaves room (and its
@@ -55,17 +55,17 @@ function TweaksPanel({ title = 'Tweaks', anchor, children }:
   }, [open, clampToViewport])
 
   useEffect(() => {
-    // 'T' toggles the panel (ignored while typing in inputs).
+    // the hotkey toggles the panel (ignored while typing in inputs).
     const onKey = (ev: KeyboardEvent) => {
       if (ev.defaultPrevented) return
       const tag = (ev.target && (ev.target as HTMLElement).tagName) || ''
       if (/INPUT|TEXTAREA|SELECT/.test(tag) || ev.metaKey || ev.ctrlKey || ev.altKey) return
-      if (ev.key !== 't' && ev.key !== 'T') return
+      if (ev.key.toLowerCase() !== hotkey.toLowerCase()) return
       ev.preventDefault(); setOpen((o) => !o)
     }
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
-  }, [])
+  }, [hotkey])
 
   const dismiss = () => {
     setOpen(false)
@@ -99,9 +99,9 @@ function TweaksPanel({ title = 'Tweaks', anchor, children }:
     return (
       <>
         <style>{TWEAKS_STYLE}</style>
-        <button className="twk-fab" data-omelette-chrome="" title="Tweaks (press T)"
-                style={{ [ANCHOR]: 16, [OPP]: 'auto' }}
-                onClick={() => setOpen(true)}>✦ Tweaks</button>
+        <button className="twk-fab" data-omelette-chrome="" title={`${title} (press ${hotkey.toUpperCase()})`}
+                style={{ [ANCHOR]: 16, [OPP]: 'auto', ...fabStyle }}
+                onClick={() => setOpen(true)}>{fabLabel}</button>
       </>
     )
   }

@@ -34,6 +34,11 @@ function _leaf(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, t
 // lightning state machine (module scope): one flash = a sharp double-spike that
 // decays over ~0.4s, with a random next-strike timer. Persists across frames.
 let _stormState: { next?: number | null; start?: number | null; az?: number; dur?: number; mag?: number } | null = null
+// audio seam: the audio layer registers a listener to play thunder when a new bolt
+// is born. Kept as a one-way subscription so render3d has no dependency on audio.
+// mag 0..1 = brightness/closeness, az = bearing (for volume / future panning).
+let _onLightning: ((mag: number, az: number) => void) | null = null
+export function onLightning(fn: ((mag: number, az: number) => void) | null) { _onLightning = fn }
 // reusable downscale buffer for the bloom pass
 let _bloomCCache: HTMLCanvasElement | null = null
 
@@ -70,6 +75,12 @@ interface RenderCtx {
   storming: boolean
   wetness: number
   cloud: number
+  // weather-driven open-sky gradient (top → horizon). Overrides world.ceil for the
+  // sky strip only — walls/floor/fog keep world.fog. Clear day = muted blue paling
+  // to a warm-grey pollution haze band; overcast/storm/night fall back to world.ceil.
+  skyTop: number[]
+  skyMid: number[] | null   // optional middle gradient stop (Storm bruise belly); null = 2-stop
+  skyHorizon: number[]
   // lightning
   flash: number
   flashAz: number
@@ -137,6 +148,32 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   const wetness = raining ? (storming ? 1 : 0.72) : 0;
   const cloud = overcast ? (raining ? 0.9 : 0.55) : 0;
 
+  // ---- weather-driven OPEN-SKY palette (sky strip only). On a Clear day we paint
+  // a believable daytime sky: blue-dominant up top, paling to a warm grey-tan haze
+  // band at the horizon — "clear, but with some pollution" — instead of the world's
+  // flat grey-green ceiling. Overcast/Storm/Night keep world.ceil (the grey wash and
+  // night model own those looks). Touches ONLY the sky gradient + spire base; walls,
+  // floor, fog and creatures still read from world.fog as before.
+  const clearDay = daylight && weather === 'Clear';
+  const stormDay = daylight && storming;
+  // skyBlue (0..1) lerps the zenith from a pale/hazy blue toward a deep clear blue;
+  // the horizon stays a warm-grey pollution band but cools slightly as blueness rises.
+  const skyBlue = tw.skyBlue == null ? 0.5 : tw.skyBlue;
+  // Storm sky is a BRUISED gradient, not a flat grey wash: an oppressive near-black
+  // slate-indigo zenith → a heavy storm grey-blue belly → a sickly luminous green-
+  // yellow band glowing at the horizon (the classic severe-weather / tornado tell).
+  // Three stops (skyTop, skyMid, skyHorizon) painted in drawCeilingFloor; the belly
+  // stop is pushed low so the green-yellow reads as a thin horizon band, not a wash.
+  const skyTop = clearDay
+    ? mix([176, 192, 210], [96, 142, 206], skyBlue)   // pale-blue → deep-blue zenith
+    : stormDay ? [26, 30, 40]                          // oppressive near-black slate-indigo
+    : world.ceil[0];
+  const skyMid = stormDay ? [54, 62, 74] : null;       // heavy storm grey-blue belly (Storm only)
+  const skyHorizon = clearDay
+    ? mix([200, 198, 186], [182, 192, 196], skyBlue)  // warm haze → slightly cooler haze
+    : stormDay ? [138, 140, 92]                        // sickly luminous green-yellow tell
+    : world.ceil[1];
+
   // lightning: a state machine on module scope. One flash = a sharp double-spike that
   // decays over ~0.4s. It boosts wall ambient (corridor flashes into view) and
   // paints a white overlay; thunder would lag it (audio off for now).
@@ -144,7 +181,14 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   if (storming && tw.lightning) {
     let S = _stormState;
     if (!S || S.next == null) S = _stormState = { next: now + 1200 };
-    if (now >= S.next!) { S.start = now; S.az = (Math.random() * 2 - 1) * Math.PI; S.dur = 300 + Math.random() * 280; S.next = now + 2600 + Math.random() * 5200; S.mag = 0.75 + Math.random() * 0.25; }
+    if (now >= S.next!) {
+      // gap between strikes: thunderGap seconds (tweakable) ± 40% jitter. Spacing the
+      // flash here also spaces the boom, since thunder is fired off this same event.
+      const gapMs = (tw.thunderGap ?? 5) * 1000;
+      S.start = now; S.az = (Math.random() * 2 - 1) * Math.PI; S.dur = 300 + Math.random() * 280;
+      S.next = now + gapMs * (0.6 + Math.random() * 0.8); S.mag = 0.75 + Math.random() * 0.25;
+      _onLightning?.(S.mag, S.az);
+    }
     if (S.start != null) {
       const e = (now - S.start) / S.dur!;
       if (e >= 0 && e <= 1) {
@@ -165,9 +209,12 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
     else if (overcast) { gShadow = [64, 72, 70]; gTint = [110, 122, 114]; gTintA = 0.15; gSat = 0.48; } // flat grey-green
     else {
       const warm = Math.max(0, 1 - (tw.sunHeight == null ? 0.32 : tw.sunHeight) / 0.42); // low sun → amber dawn/dusk
-      gShadow = mix([58, 66, 60], [56, 44, 32], warm);
-      gTint = mix([116, 128, 116], [158, 120, 76], warm);
-      gTintA = 0.10 + 0.05 * warm; gSat = 0.26;
+      // high-sun end is now a neutral-cool cast (not grey-green) with a lighter
+      // desaturate, so the Clear-day blue sky survives instead of being washed grey;
+      // the low-sun (warm) end is unchanged — dawn/dusk still go amber.
+      gShadow = mix([60, 66, 74], [56, 44, 32], warm);
+      gTint = mix([120, 130, 142], [158, 120, 76], warm);
+      gTintA = 0.08 + 0.07 * warm; gSat = 0.16 + 0.10 * warm;
     }
   }
 
@@ -209,7 +256,7 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
     gs, tw, now, GW, GH, tiles,
     world, daylight, W, H, R, fall, fog, M,
     flick, breathe,
-    weather, overcast, raining, storming, wetness, cloud,
+    weather, overcast, raining, storming, wetness, cloud, skyTop, skyMid, skyHorizon,
     flash, flashAz, fcx, fcy,
     gradeAmt, gShadow, gTint, gTintA, gSat,
     bobY, roll,
@@ -229,7 +276,6 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
 
   drawCeilingFloor(ctx, rc);
   drawSky(ctx, rc);
-  drawGodrays(ctx, rc);
   drawWalls(ctx, rc);
   drawFloorGrates(ctx, rc);
   drawPebbles(ctx, rc);
@@ -254,10 +300,14 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
 
 // ceiling (or open sky) + floor (or water): the gradient backdrop the walls paint over.
 function drawCeilingFloor(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { world, W, H, M, wetness, now } = rc;
-  // ceiling (or open sky) + floor (or water)
+  const { world, W, H, M, wetness, now, skyTop, skyMid, skyHorizon } = rc;
+  // ceiling (or open sky) + floor (or water). Open sky uses the weather-driven
+  // palette (Clear day = blue→haze; Storm = bruised slate→green-yellow via skyMid);
+  // equals world.ceil for night.
   const cg = ctx.createLinearGradient(0, -M, 0, H / 2);
-  cg.addColorStop(0, world.ceilCss[0]); cg.addColorStop(1, world.ceilCss[1]);
+  cg.addColorStop(0, rgba(skyTop, 1));
+  if (skyMid) cg.addColorStop(0.72, rgba(skyMid, 1));   // bruise belly stop low → green-yellow stays a thin horizon band
+  cg.addColorStop(1, rgba(skyHorizon, 1));
   ctx.fillStyle = cg; ctx.fillRect(-M, -M, W + 2 * M, H / 2 + M);
   const fgr = ctx.createLinearGradient(0, H / 2, 0, H + M);
   fgr.addColorStop(0, world.floorCss[0]); fgr.addColorStop(1, world.floorCss[1]);
@@ -280,16 +330,31 @@ function drawCeilingFloor(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 // spires skyline, and drifting clouds. Drawn BEFORE the walls, so the walls paint
 // over it and it only shows through the open-top strip. ----
 function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { world, tw, daylight, W, H, M, cloud, raining, ang, half, sunAz, sunEl, now } = rc;
+  const { world, tw, daylight, W, H, M, cloud, raining, storming, flash, ang, half, sunAz, sunEl, now, skyTop, skyMid, skyHorizon } = rc;
   if (!(world.id === 'mazerunner' && tw.sky)) return;
   const bearing = (az: number) => { let b = az - ang; while (b > Math.PI) b -= 6.2832; while (b < -Math.PI) b += 6.2832; return b; };
   const skyX = (b: number) => W / 2 + (Math.tan(b) / half) * (W / 2);
   const sunY = H * (0.03 + sunEl * 0.34);
   const clear = 1 - cloud;            // how much the sun/moon/stars show through cloud
-  // overcast sky wash: flatten the open-top strip toward storm grey
-  if (cloud > 0) {
+  // cloud wash: dim the open-top strip. The daylight Storm sky is already a bruised
+  // gradient (skyMid set, painted in drawCeilingFloor), so we skip the flat overlay
+  // there and only wash at night, where there's no gradient to preserve.
+  if (cloud > 0 && !(daylight && skyMid)) {
     const grey = daylight ? (raining ? [88, 96, 100] : [120, 128, 134]) : [26, 32, 40];
     ctx.fillStyle = rgba(grey, cloud * (daylight ? (raining ? 0.62 : 0.5) : 0.6)); ctx.fillRect(-M, -M, W + 2 * M, H / 2 + M);
+  }
+  // ---- LIGHTNING LIGHTS THE SKY: a strike briefly floods the open strip with a
+  // cool blue-white, backlighting the storm clouds drawn just below. Additive so it
+  // reads as a flash of light, not a paint layer; decays with the strike's `flash`.
+  if (storming && flash > 0.02) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const lf = Math.min(1, flash);
+    const lg = ctx.createLinearGradient(0, -M, 0, H * 0.5);
+    lg.addColorStop(0, rgba([150, 170, 210], 0.42 * lf));
+    lg.addColorStop(0.6, rgba([120, 140, 185], 0.20 * lf));
+    lg.addColorStop(1, rgba([120, 140, 185], 0));
+    ctx.fillStyle = lg; ctx.fillRect(-M, -M, W + 2 * M, H / 2 + M);
+    ctx.restore();
   }
   if (daylight) {
     const b = bearing(sunAz);
@@ -365,7 +430,7 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       const lean = s.lean * tall;
       // solid hazy silhouette — color blended toward the sky/fog so it still reads
       // atmospheric, but drawn OPAQUE so it always occludes the sun/moon behind it.
-      const skyBase = daylight ? mix(world.ceil[1], world.ceil[0], 0.5) : world.fog;
+      const skyBase = daylight ? mix(skyHorizon, skyTop, 0.5) : world.fog;
       const towerCol = daylight ? [98, 106, 116] : [40, 48, 62];
       const dens = (daylight ? 0.5 : 0.52) + 0.26 * near;
       const tint = mix(skyBase, towerCol, dens);
@@ -431,9 +496,11 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
         for (let r = 1; r <= 3; r++) { ctx.fillRect(cx - wBot * 0.62 + lean * (r / 6), baseY - tall * (0.2 * r), wBot * 1.24, Math.max(1, tall * 0.012)); }
         mast(topY + tall * 0.06, tall * 0.1, lean);
       }
-      // ---- night detailing: static lit windows scattered up the tower (no beacon) ----
+      // ---- night detailing: static lit windows scattered up the tower (no beacon).
+      // Night only — daylight towers are left as clean silhouettes. ----
       if (!daylight) {
         const rows = 9, cols = 3;
+        const ww = Math.max(0.9, wBot * 0.17), wh = Math.max(0.9, tall * 0.013);
         for (let wr = 0; wr < rows; wr++) for (let wc = 0; wc < cols; wc++) {
           if (_h2(s.seed * 31 + wr * 7, wc * 13 + 5) > 0.5) continue;        // ~half lit, stable
           const fy = 0.1 + 0.78 * (wr / (rows - 1));
@@ -442,68 +509,53 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
           const wx = cx + lean * fy + (wc - (cols - 1) / 2) * (halfW * 1.05 / cols);
           ctx.globalAlpha = 0.5 * (0.6 + 0.4 * near);                        // steady, dimmer
           ctx.fillStyle = 'rgba(255,206,120,1)';
-          ctx.fillRect(wx, wy, Math.max(0.9, wBot * 0.17), Math.max(0.9, tall * 0.013));
+          ctx.fillRect(wx, wy, ww, wh);
         }
-      } else if (near > 0.45) {
-        // daytime: faint window banding
-        ctx.fillStyle = rgba(mix(tint, [60, 66, 70], 0.5), 0.4);
-        for (let r = 0; r < 4; r++) { const wy = baseY - tall * (0.2 + r * 0.18); ctx.fillRect(cx - wBot * 0.5, wy, wBot, 1.2); }
       }
       ctx.restore();
     }
   }
 
-  // ---- DRIFTING CLOUDS: soft blobs easing across the open-top strip. ----
-  if (tw.clouds) {
+  // ---- DRIFTING CLOUDS: soft blobs easing across the open-top strip. During a
+  // STORM the layer is forced ON and turned turbulent — dense, dark, fast and low-
+  // hanging — so the sky churns overhead instead of sitting empty, and the lightning
+  // flash backlights the blobs. Outside storms it honours the cloud tweaks as before.
+  if (tw.clouds || storming) {
     const cl = clouds();
-    const cAmt = tw.cloudAmount == null ? 0.28 : tw.cloudAmount;
-    const cSpd = tw.cloudSpeed == null ? 1 : tw.cloudSpeed;
-    const cShade = tw.cloudShade == null ? 0 : tw.cloudShade;     // 0 light → 1 heavy/dark
+    // storm cloud cover comes from its OWN slider (tw.stormClouds), independent of the
+    // normal "Cloud amount" — so the storm sky fills regardless of the clear-day setting.
+    const stormCl = tw.stormClouds == null ? 0.9 : tw.stormClouds;
+    const cAmt = storming ? stormCl : (tw.cloudAmount == null ? 0.28 : tw.cloudAmount);
+    const cSpd = (tw.cloudSpeed == null ? 1 : tw.cloudSpeed) * (storming ? 2.6 : 1);   // wind-driven
+    // denser storm cover also reads as heavier/darker cloud
+    const cShade = storming ? (0.55 + 0.4 * stormCl)
+      : (tw.cloudShade == null ? 0 : tw.cloudShade);   // 0 light → 1 heavy/dark
     const nDraw = Math.min(cl.length, qty(cAmt, QUANTITY.clouds));
-    // base colour from the tweak (hex), darkened by shade; night is always darker
-    const baseRGB = (tw.cloudColor ? hexToRgb(tw.cloudColor) : null) || (daylight ? [188, 195, 199] : [50, 58, 72]);
+    // base colour from the tweak (hex), darkened by shade; night is always darker.
+    // storm clouds skip the user hex and use a cold bruised grey.
+    const baseRGB = storming ? (daylight ? [70, 78, 88] : [30, 36, 46])
+      : ((tw.cloudColor ? hexToRgb(tw.cloudColor) : null) || (daylight ? [188, 195, 199] : [50, 58, 72]));
     const col = daylight ? mix(baseRGB, [30, 34, 40], cShade * 0.7) : mix(baseRGB, [10, 12, 16], 0.4 + cShade * 0.4);
+    // lightning backlight: brighten the blobs toward a cool white while a strike decays
+    const lit = storming && flash > 0.02 ? Math.min(1, flash) : 0;
+    const cloudCol = lit ? mix(col, [180, 196, 224], 0.6 * lit) : col;
     for (let i = 0; i < nDraw; i++) {
       const c2 = cl[i];
       const az = (c2.az + now * 0.00006 * c2.spd * cSpd) % 6.2832;
       const b = bearing(az);
       if (Math.abs(b) > 0.95) continue;
-      const cx = skyX(b), cy = -M * 0.1 + c2.el * (H * 0.3);   // sit in the open sky gap
-      const cw = H * 0.2 * c2.sz, ch = H * 0.06 * c2.sz;
-      const a = (daylight ? 0.5 : 0.3) * (1 - cloud * 0.4) * (1 + cShade * 0.5);
+      // storm clouds hang lower and spread wider across the open strip
+      const elR = storming ? 0.5 : 0.3;
+      const cx = skyX(b), cy = -M * 0.1 + c2.el * (H * elR);   // sit in the open sky gap
+      const cw = H * (storming ? 0.26 : 0.2) * c2.sz, ch = H * (storming ? 0.09 : 0.06) * c2.sz;
+      const a = (daylight ? 0.5 : 0.3) * (storming ? 1 : (1 - cloud * 0.4)) * (1 + cShade * 0.5);
       for (let p = 0; p < 5; p++) {
         const px = cx + Math.sin(c2.puff + p * 1.7) * cw * 0.55, py = cy + Math.cos(c2.puff + p) * ch * 0.5;
         const rad = cw * (0.5 + 0.18 * Math.sin(c2.puff + p * 2.3));
         const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
-        g.addColorStop(0, rgba(col, a)); g.addColorStop(0.7, rgba(col, a * 0.5)); g.addColorStop(1, rgba(col, 0));
+        g.addColorStop(0, rgba(cloudCol, a)); g.addColorStop(0.7, rgba(cloudCol, a * 0.5)); g.addColorStop(1, rgba(cloudCol, 0));
         ctx.fillStyle = g; ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
       }
-    }
-  }
-}
-
-// ---- GOD-RAYS: soft, diffuse light filtering down through the open top. Drawn
-// BEFORE the wall loop so walls occlude it. NOT radiating shafts from the sun —
-// just a few gentle vertical columns of light, very subtle. ----
-function drawGodrays(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { tw, daylight, world, W, H, M, cloud, ang, half, sunAz, sunEl, now } = rc;
-  if (tw.godrays && daylight && tw.sky && world.id === 'mazerunner') {
-    let gb = sunAz - ang; while (gb > Math.PI) gb -= 6.2832; while (gb < -Math.PI) gb += 6.2832;
-    const clearG = 1 - cloud;
-    if (Math.abs(gb) < 1.0 && clearG > 0.12) {
-      const gsx = W / 2 + (Math.tan(gb) / half) * (W / 2);
-      const gI = clearG * (0.4 + 0.45 * sunEl);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      const bands = 5;
-      for (let i = 0; i < bands; i++) {
-        const bx = gsx + (i - (bands - 1) / 2) * W * 0.055 + 10 * Math.sin(now * 0.0004 + i * 1.3);
-        const bw = W * 0.05 * (0.8 + 0.4 * Math.sin(now * 0.0006 + i * 2.1));
-        const g = ctx.createLinearGradient(0, -M, 0, H * 0.6);
-        g.addColorStop(0, `rgba(255,250,236,${0.028 * gI})`);
-        g.addColorStop(1, 'rgba(255,250,236,0)');
-        ctx.fillStyle = g; ctx.fillRect(bx - bw, -M, bw * 2, H * 0.6 + M);
-      }
-      ctx.restore();
     }
   }
 }
@@ -916,8 +968,8 @@ function drawDriftLeaves(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 }
 
 // ---- VINES (Maze Runner only): live, tweakable. Leafy cascades off wall tops.
-// Three drooping styles: Leaves (default soft foliage), Ivy (pointed leaves on a
-// swaying stem), Pearls (string-of-pearls beads). All sway with wind. ----
+// Two drooping styles: Leaves (default soft foliage) and Ivy (pointed leaves on a
+// swaying stem). Both sway with wind. ----
 function drawVines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { world, tw, cN, cU, cTop, cBot, cX, cDepth, lightAt, windAt } = rc;
   if (world.id === 'mazerunner' && tw.vineDensity > 0 && tw.vines) {
@@ -942,8 +994,8 @@ function drawVines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       const leafR = Math.min(5.5, Math.max(1.1, lineH * 0.0062));
       const nLeaf = Math.min(22, Math.max(2, (vlen / (leafR * 1.5)) | 0));
       const ph = cell * 0.7 + col * 0.013;
-      // 'Mixed' assigns each vine one of the three styles at random (stable per vine)
-      const vStyle = style === 'Mixed' ? ['Leaves', 'Ivy', 'Pearls'][(_h2(cell * 9 + si, 21) * 3) | 0] : style;
+      // 'Mixed' assigns each vine one of the two styles at random (stable per vine)
+      const vStyle = style === 'Mixed' ? ['Leaves', 'Ivy'][(_h2(cell * 9 + si, 21) * 2) | 0] : style;
       // swaying stem for the structured styles
       if (vStyle !== 'Leaves') {
         ctx.strokeStyle = rgba(mix(world.fog, [66, 90, 42], lf), 0.55);
@@ -962,10 +1014,6 @@ function drawVines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
         const fill = rgba(mix(world.fog, gcol, lf), 0.86);
         if (vStyle === 'Ivy') {
           _leaf(ctx, col + jx, yy, r * 1.3, (s % 2 ? 1 : -1) * (0.5 + 0.2 * Math.sin(s)), fill);
-        } else if (vStyle === 'Pearls') {
-          ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(col + jx, yy, r * 0.95, 0, 7); ctx.fill();
-          ctx.fillStyle = rgba(mix(gcol, [240, 248, 214], 0.7), 0.45 * lf + 0.12);
-          ctx.beginPath(); ctx.arc(col + jx - r * 0.32, yy - r * 0.32, r * 0.32, 0, 7); ctx.fill();
         } else {
           ctx.fillStyle = fill; ctx.beginPath(); ctx.ellipse(col + jx, yy - r * 0.2, r * 0.9, r * 1.3, 0, 0, 7); ctx.fill();
         }

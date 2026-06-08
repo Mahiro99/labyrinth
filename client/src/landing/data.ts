@@ -3,8 +3,6 @@
 export const DAY_NO = 142;
 export const TODAY = '2026-06-06';
 
-export const VINE_TINTS = ['#9cb870', '#88a85c', '#7a9a4e', '#6d8d44', '#aac487', '#94b266'];
-
 type LurkerSpec = {
   side: 'left' | 'right';
   t: number;

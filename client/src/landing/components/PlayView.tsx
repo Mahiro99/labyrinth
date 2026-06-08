@@ -1,12 +1,10 @@
-// PlayView.tsx — the PLAY view: copy & the ENTER button over the corridor.
-import { useState } from 'react';
+// PlayView.tsx — the PLAY view: the ESCAPE call-to-action over the corridor.
+// ESCAPE itself is the button (an arrow replaces the old period; clicking it dives
+// into the maze), so there's no separate ENTER — the title IS the action.
 import { DAY_NO } from '../data';
-import { useMediaQuery } from '../../lib/useMediaQuery';
 
-export function PlayView({ onEnter, mobile = false }: { onEnter: () => void; mobile?: boolean }) {
-  const [hover, setHover] = useState(false);
-  // no hover on touch, so give ENTER a visible filled-ish state by default there
-  const coarse = useMediaQuery('(pointer: coarse)');
+export function PlayView({ onEnter, onArm, mobile = false }:
+  { onEnter: () => void; onArm?: () => void; mobile?: boolean }) {
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', textAlign: 'center',
@@ -15,18 +13,14 @@ export function PlayView({ onEnter, mobile = false }: { onEnter: () => void; mob
         marginBottom: 'clamp(16px, 3.5vw, 26px)', whiteSpace: 'nowrap' }}>
         NO. {DAY_NO}
       </div>
-      <h1 style={{ margin: '0 0 clamp(30px, 6vw, 46px)', color: 'var(--ink)', fontFamily: "'Fraunces', serif", fontWeight: 400,
-        fontSize: 'clamp(44px, 11vw, 96px)', letterSpacing: '0.03em', lineHeight: 1, whiteSpace: 'nowrap',
-        textShadow: '0 2px 38px rgba(6,8,6,0.9), 0 1px 4px rgba(6,8,6,0.5)' }}>ESCAPE.</h1>
-      <button onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-        onClick={() => onEnter()}
-        style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 'clamp(13px, 3vw, 14px)', letterSpacing: '0.3em',
-          padding: 'clamp(15px, 3.5vw, 18px) clamp(40px, 11vw, 54px)', color: hover ? '#1c2016' : 'var(--ink)',
-          background: hover ? 'var(--accent)' : (coarse ? 'rgba(158,196,105,0.14)' : 'rgba(18,22,17,0.46)'),
-          border: '1px solid var(--accent)', borderRadius: 2, transition: 'all 0.25s ease',
-          display: 'inline-flex', alignItems: 'center', gap: 14, backdropFilter: 'blur(2px)' }}>
-        ENTER <span>→</span>
-      </button>
+      <h1 style={{ margin: '0 0 clamp(30px, 6vw, 46px)' }}>
+        <button className="lab-escape" onClick={() => onEnter()}
+          onPointerEnter={() => onArm?.()} onPointerDown={() => onArm?.()}
+          aria-label="Escape — enter the maze"
+          style={{ fontSize: 'clamp(44px, 11vw, 96px)' }}>
+          ESCAPE<span className="lab-escape-arrow" aria-hidden="true">→</span>
+        </button>
+      </h1>
       <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'center',
         alignItems: 'center', gap: mobile ? 6 : 'clamp(12px, 3vw, 22px)', marginTop: 'clamp(20px, 4vw, 30px)',
         fontSize: 'clamp(10.5px, 2.6vw, 11.5px)', letterSpacing: '0.18em' }}>

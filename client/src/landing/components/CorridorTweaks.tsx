@@ -30,11 +30,15 @@ export function CorridorTweaks(
       <TweakSlider label="Breathing" value={t.breathe} min={0} max={1} step={0.02} format={asPercent}
         onChange={(v) => setTweak('breathe', v)} />
 
-      <TweakSection label="Ivy glow" />
-      <TweakSlider label="Brightness" value={t.ivyGlow} min={0} max={1} step={0.02} format={asPercent}
-        onChange={(v) => setTweak('ivyGlow', v)} />
-      <TweakSlider label="Saturation" value={t.ivySat} min={0} max={1.5} step={0.05} format={asPercent}
-        onChange={(v) => setTweak('ivySat', v)} />
+      <TweakSection label="Towers" />
+      <TweakSlider label="Horizon glow" value={t.twrGlow} min={0} max={1} step={0.02} format={asPercent}
+        onChange={(v) => setTweak('twrGlow', v)} />
+      <TweakSlider label="Crowns lit" value={t.twrLit} min={0} max={1} step={0.02} format={asPercent}
+        onChange={(v) => setTweak('twrLit', v)} />
+      <TweakSlider label="Far haze" value={t.twrHaze} min={0} max={1} step={0.02} format={asPercent}
+        onChange={(v) => setTweak('twrHaze', v)} />
+      <TweakSlider label="Window glow" value={t.twrWin} min={0} max={2} step={0.05} format={asPercent}
+        onChange={(v) => setTweak('twrWin', v)} />
 
       <TweakSection label="Resulting CSS" />
       <div style={{ font: '10.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace',

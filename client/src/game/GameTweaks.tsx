@@ -12,19 +12,21 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
     <TweaksPanel>
       <TweakSection label="World" />
       <TweakRadio label="Time of day" value={t.mrTime} options={['Day', 'Night']} onChange={(v) => setTweak('mrTime', v)} />
-      <TweakSelect label="Weather" value={t.weather} options={['Clear', 'Overcast', 'Storm']} onChange={(v) => setTweak('weather', v)} />
+      <TweakSelect label="Weather" value={t.weather} options={['Clear', 'Storm']} onChange={(v) => setTweak('weather', v)} />
       {t.weather === 'Storm' && <TweakSlider label="Rain intensity" value={t.rainAmt} min={0.05} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('rainAmt', v)} />}
+      {t.weather === 'Storm' && <TweakSlider label="Storm clouds" value={t.stormClouds} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('stormClouds', v)} />}
       {t.weather === 'Storm' && <TweakToggle label="Lightning" value={t.lightning} onChange={(v) => setTweak('lightning', v)} />}
       <TweakToggle label="Sky (sun / stars)" value={t.sky} onChange={(v) => setTweak('sky', v)} />
       {t.sky && <>
         <TweakSlider label="Sun azimuth" value={t.sunAz} min={-180} max={180} step={5} onChange={(v) => setTweak('sunAz', v)} />
         <TweakSlider label="Sun height" value={t.sunHeight} min={0} max={1} step={0.05} onChange={(v) => setTweak('sunHeight', v)} />
+        {t.mrTime === 'Day' && t.weather === 'Clear' && <TweakSlider label="Sky blueness" value={t.skyBlue} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('skyBlue', v)} />}
         {t.mrTime === 'Night' && <TweakSlider label="Star density" value={t.starDensity} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('starDensity', v)} />}
         <TweakToggle label="Distant spires" value={t.landmark} onChange={(v) => setTweak('landmark', v)} />
         {t.landmark && <TweakSlider label="Spire count" value={t.spireCount} min={0} max={64} step={1} onChange={(v) => setTweak('spireCount', v)} />}
         {t.landmark && <TweakSlider label="Spire height" value={t.spireHeight} min={0.3} max={3} step={0.1} onChange={(v) => setTweak('spireHeight', v)} />}
         <TweakToggle label="Drifting clouds" value={t.clouds} onChange={(v) => setTweak('clouds', v)} />
-        {t.clouds && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudAmount', v)} />}
+        {t.clouds && t.weather !== 'Storm' && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudAmount', v)} />}
         {t.clouds && <TweakSlider label="Cloud speed" value={t.cloudSpeed} min={0} max={4} step={0.1} onChange={(v) => setTweak('cloudSpeed', v)} />}
         {t.clouds && <TweakSlider label="Cloud shade" value={t.cloudShade} min={0} max={1} step={0.05} onChange={(v) => setTweak('cloudShade', v)} />}
         {t.clouds && <TweakColor label="Cloud color" value={t.cloudColor} options={['#bcc3c7', '#e8eaec', '#9aa6b0', '#c9b9a4', '#7a8694']} onChange={(v) => setTweak('cloudColor', v)} />}
@@ -59,7 +61,7 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       <TweakSection label="Vines" />
       <TweakToggle label="Hanging vines" value={t.vines} onChange={(v) => setTweak('vines', v)} />
       {t.vines && <>
-        <TweakRadio label="Leaf style" value={t.vineStyle} options={['Leaves', 'Ivy', 'Pearls', 'Mixed']} onChange={(v) => setTweak('vineStyle', v)} />
+        <TweakRadio label="Leaf style" value={t.vineStyle} options={['Leaves', 'Ivy', 'Mixed']} onChange={(v) => setTweak('vineStyle', v)} />
         <TweakSlider label="Density" value={t.vineDensity} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('vineDensity', v)} />
         <TweakSlider label="Length" value={t.vineLength} min={0.05} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('vineLength', v)} />
         <TweakSlider label="Closeness" value={t.vineCloseness} min={4} max={56} step={1} onChange={(v) => setTweak('vineCloseness', v)} />
@@ -85,7 +87,6 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       {t.grade && <TweakSlider label="Grade strength" value={t.gradeAmt} min={0} max={1} step={0.05} onChange={(v) => setTweak('gradeAmt', v)} />}
       <TweakToggle label="Bloom" value={t.bloom} onChange={(v) => setTweak('bloom', v)} />
       {t.bloom && <TweakSlider label="Bloom strength" value={t.bloomAmt} min={0} max={0.7} step={0.02} onChange={(v) => setTweak('bloomAmt', v)} />}
-      <TweakToggle label="God-rays" value={t.godrays} onChange={(v) => setTweak('godrays', v)} />
 
       <TweakSection label="Atmosphere" />
       <TweakToggle label="Ambient occlusion" value={t.ao} onChange={(v) => setTweak('ao', v)} />

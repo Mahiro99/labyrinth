@@ -82,14 +82,14 @@ export interface Palette {
 export interface Tweaks {
   world: string
   mrTime: 'Day' | 'Night'
-  weather: 'Clear' | 'Overcast' | 'Storm'
+  weather: 'Clear' | 'Storm'
   rainAmt: number
+  stormClouds: number    // Storm cloud cover density (0..1) — own control, replaces cloudAmount in Storm
   lightning: boolean
   grade: boolean
   gradeAmt: number
   bloom: boolean
   bloomAmt: number
-  godrays: boolean
   vines: boolean
   vineStyle: string
   vineDensity: number
@@ -103,6 +103,7 @@ export interface Tweaks {
   pebbleSize: number
   pebbleRandom: number
   sky: boolean
+  skyBlue: number       // Clear-day sky blueness (0 = pale/hazy, 1 = deep blue)
   sunAz: number
   sunHeight: number
   sunLight: boolean
@@ -147,4 +148,25 @@ export interface Tweaks {
   bobAmt: number
   sway: boolean
   swayAmt: number
+  // --- audio (see audio.md + AudioEngine) ---
+  audioMuted: boolean
+  audioVolume: number       // master 0..1
+  soundFootsteps: boolean
+  footstepVolume: number
+  soundCharted: boolean     // "new ground" flourish
+  chartedVolume: number
+  soundBreathing: boolean
+  breathAmt: number         // how much exertion (step cadence) swells the breath (0..1)
+  soundRain: boolean        // rain bed (only audible in Storm — follows weather)
+  rainVolume: number
+  soundWind: boolean        // wind bed (follows the visual Wind toggle)
+  windVolume: number
+  soundFactory: boolean     // the machines/* ambient drone bed
+  factoryVolume: number
+  soundThunder: boolean
+  thunderVolume: number
+  thunderGap: number        // seconds between strikes (spacing) — drives flash + boom
+  exitVolume: number        // the exit-reached victory sting
+  soundMusic: boolean       // background score bed during the game (quiet, like landing)
+  musicVolume: number       // in-game music ceiling (lower than the landing's)
 }

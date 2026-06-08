@@ -6,15 +6,19 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { makeMaze, computeLight, canStand } from '../engine'
-import { drawFirstPerson, drawMinimap } from '../render'
+import { drawFirstPerson, drawMinimap, onLightning } from '../render'
+import { THUNDERS } from '../audio'
 import { useTweaks } from '../tweaks'
 import { TWEAK_DEFAULTS, DAILY_SEED, MAZE_CELLS, KEY_DIR } from './defaults'
 import { useKeyboard } from './useKeyboard'
 import { useTouch } from './useTouch'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import type { GameState, Tweaks } from '../types'
+import type { AudioEngine } from '../audio'
 
-export function useGame() {
+export function useGame(audio?: AudioEngine) {
+  // engine in a ref so the rAF loop + step() always see the latest without re-binding
+  const audioRef = useRef<AudioEngine | undefined>(audio); audioRef.current = audio;
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const twRef = useRef(t); twRef.current = t;
 
@@ -22,6 +26,10 @@ export function useGame() {
   const miniRef = useRef<HTMLCanvasElement | null>(null);
   const gsRef = useRef<GameState | null>(null);
   const movedRef = useRef(false);
+  // "exertion" 0..1 — rises with step cadence (fast stepping), decays when you pause;
+  // drives the breath loop's gain AND its playback rate (faster steps → faster breath).
+  const exertionRef = useRef(0);
+  const lastStepRef = useRef(0); // timestamp of the previous step, for cadence
 
   const [hud, setHud] = useState({ steps: 0, charted: 0, reached: false });
   const [hint, setHint] = useState(true);
@@ -43,15 +51,31 @@ export function useGame() {
 
   function step(gs: GameState, dx: number, dy: number, now: number, setFace: boolean) {
     const tw = twRef.current;
+    const ae = audioRef.current;
     const tx = gs.px + dx, ty = gs.py + dy;
-    if (!canStand(gs.maze, tx, ty)) return false;
+    if (!canStand(gs.maze, tx, ty)) return false; // walked into a wall — no move, no sound
+    // backtracking = stepping onto a tile we've recently been on; suppresses the
+    // "new ground" charted flourish (no longer tied to breathing)
+    const backtrack = gs.trail.some(p => p.x === tx && p.y === ty);
     gs.trail.push({ x: gs.px, y: gs.py });
     if (gs.trail.length > 60) gs.trail.shift();
     gs.px = tx; gs.py = ty; gs.steps++;
+    const fresh = !gs.tracked[ty * gs.maze.GW + tx]; // first time charting this tile
     gs.tracked[ty * gs.maze.GW + tx] = 1;
     if (setFace !== false) gs.faceTarget = Math.atan2(dy, dx);
     reveal(gs, now);
+    // footstep: a wet splash in the storm, the dry step otherwise; scaled by tweak volume
+    if (tw.soundFootsteps) ae?.playOneShot(tw.weather === 'Storm' ? 'waterstep' : 'footstep', { gain: tw.footstepVolume * 2 });
+    if (tw.soundCharted && fresh && !backtrack) ae?.playOneShot('charted', { gain: tw.chartedVolume * 2 }); // "new ground"
+    // exertion from step CADENCE: a quick gap between steps = hurrying = harder breath.
+    // gap <= ~260ms (held-move rate is 140ms) counts as fast; slow/first steps add little.
+    const gap = lastStepRef.current ? now - lastStepRef.current : 9999;
+    lastStepRef.current = now;
+    const fast = Math.max(0, Math.min(1, (520 - gap) / 420)); // 1 at <=100ms gap, 0 by >=520ms
+    exertionRef.current = Math.min(1, exertionRef.current + 0.10 + 0.22 * fast);
+    const wasReached = gs.exitReached;
     if (tx === gs.maze.exit.x && ty === gs.maze.exit.y) gs.exitReached = true;
+    if (!wasReached && gs.exitReached) ae?.playOneShot('thunder4', { gain: tw.exitVolume }); // exit sting (edge-detected)
     if (!movedRef.current) { movedRef.current = true; setHint(false); }
     return true;
   }
@@ -111,6 +135,21 @@ export function useGame() {
   // swipe on the canvas -> the same synthetic arrow keys (relative turn/move model)
   useTouch(canvasRef, onPress);
 
+  // thunder: subscribe to the renderer's lightning state machine. Each new bolt
+  // fires a random thunder clap a beat later (so the boom lags the flash, as in
+  // life), with volume scaled by the bolt's brightness (mag).
+  useEffect(() => {
+    onLightning((mag) => {
+      const ae = audioRef.current;
+      const tw = twRef.current;
+      if (!ae || !tw.soundThunder) return;
+      const name = THUNDERS[Math.floor(Math.random() * THUNDERS.length)];
+      const delay = 250 + (1 - mag) * 700; // closer (brighter) bolt = shorter delay
+      setTimeout(() => ae.playOneShot(name, { gain: tw.thunderVolume * (0.6 + mag * 0.4) }), delay);
+    });
+    return () => onLightning(null);
+  }, []);
+
   // main loop
   useEffect(() => {
     let raf: number, lastHud = 0;
@@ -119,6 +158,31 @@ export function useGame() {
       const gs = gsRef.current;
       const tw = twRef.current;
       if (gs) {
+        // audio beds: each loop is on only when its tweak says so (rain also needs
+        // Storm weather, so it doesn't drone in clear skies — that was the always-on
+        // bug). ensureBed starts/stops idempotently and ramps to the live tweak gain.
+        const ae = audioRef.current;
+        if (ae) {
+          const ensureBed = (name: Parameters<typeof ae.startLoop>[0], on: boolean, gain: number) => {
+            if (on) { ae.startLoop(name, 1.5); ae.setLoopGain(name, gain, 0.4); }
+            else ae.stopLoop(name, 1.0);
+          };
+          ensureBed('rain', tw.soundRain && tw.weather === 'Storm', tw.rainVolume);
+          ensureBed('wind', tw.soundWind && tw.wind, tw.windVolume);
+          ensureBed('machine1', tw.soundFactory, tw.factoryVolume); // the factory drone
+          // breath: always on (if enabled). gain + rate track "exertion" (step cadence),
+          // scaled by breathAmt. Louder during a storm so it carries over the rain bed.
+          exertionRef.current = Math.max(0, exertionRef.current - 0.012); // recover when idle
+          const ex = exertionRef.current;
+          ensureBed('breath', tw.soundBreathing, 0); // ensure it's running/stopped
+          if (tw.soundBreathing) {
+            const stormLift = tw.weather === 'Storm' ? 0.22 : 0; // sit above the rain
+            ae.setLoopGain('breath', (0.18 + stormLift + 0.55 * ex) * tw.breathAmt, 0.25);
+            ae.setLoopRate('breath', 1 + 0.5 * ex, 0.3); // faster steps → faster breathing
+          }
+          ae.setMuted(tw.audioMuted); ae.setVolume(tw.audioVolume);
+        }
+
         // held-key movement
         let heldKey: string | null = null;
         for (const k of keysRef.current) { if (k in KEY_DIR) { heldKey = k; break; } }
@@ -184,7 +248,7 @@ export function useGame() {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); audioRef.current?.stopAll(); };
   }, []);
 
   return { canvasRef, miniRef, hud, hint, touch, t, setTweak };

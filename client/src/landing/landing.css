@@ -77,6 +77,62 @@
   0%, 64%, 100% { transform: translateY(0); opacity: 1; }
   80%, 86% { transform: translateY(-13px); opacity: 0.12; }
 }
+/* ESCAPE call-to-action — the title IS the button. Underline grows from the left
+   on hover/focus; the arrow slides right. On touch (no hover) the arrow drifts on
+   a loop so it reads as tappable at rest. */
+.lab-escape {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.18em;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  text-shadow: 0 2px 38px rgba(6, 8, 6, 0.9), 0 1px 4px rgba(6, 8, 6, 0.5);
+  -webkit-tap-highlight-color: transparent;
+}
+.lab-escape::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.12em;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lab-escape:hover::after,
+.lab-escape:focus-visible::after {
+  transform: scaleX(1);
+}
+.lab-escape .lab-escape-arrow {
+  color: var(--accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.5em;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lab-escape:hover .lab-escape-arrow,
+.lab-escape:focus-visible .lab-escape-arrow {
+  transform: translateX(0.28em);
+}
+@keyframes lab-arrow-drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(0.3em); }
+}
+/* touch: no hover, so the arrow drifts to signal it's tappable */
+@media (pointer: coarse) {
+  .lab-escape .lab-escape-arrow { animation: lab-arrow-drift 1.8s ease-in-out infinite; }
+  .lab-escape::after { transform: scaleX(1); opacity: 0.5; }
+}
+
 /* a few tower windows flicker — a distant, failing light, not a strobe. The dip
    is brief and shallow; per-window dur/delay keep them out of sync. */
 @keyframes lab-window-flicker {
@@ -125,12 +181,16 @@
 
 /* ENTER → dive into the floor hatch: the corridor rushes toward the vanishing
    point (the hatch at ~50%/72%) while the UI drops away, then a white blink as
-   we cross the threshold into the game. */
+   we cross the threshold into the game.
+   NOTE: the scene keyframe is PURE transform — no filter/opacity — so it stays on
+   the compositor (GPU) and never re-paints the heavy SVG/blur/blend scene per
+   frame. The brightness payoff lives entirely in the cheap flash overlay instead;
+   that was the source of the hitch right as the dive began. */
 @keyframes lab-dive {
-  0%   { transform: scale(1);   filter: brightness(1); }
-  72%  { transform: scale(7);   filter: brightness(1.05); }
-  88%  { transform: scale(12);  filter: brightness(2.4); }
-  100% { transform: scale(15);  filter: brightness(8); }
+  0%   { transform: scale(1); }
+  72%  { transform: scale(7); }
+  88%  { transform: scale(12); }
+  100% { transform: scale(15); }
 }
 @keyframes lab-dive-ui {
   0%   { opacity: 1; transform: scale(1); }
@@ -138,28 +198,41 @@
   100% { opacity: 0; transform: scale(1.25); }
 }
 @keyframes lab-dive-flash {
-  0%, 70% { opacity: 0; }
-  100%    { opacity: 1; }
+  0%   { opacity: 0; }
+  55%  { opacity: 0.12; }
+  100% { opacity: 1; }
 }
 
-/* the scene flies in toward the hatch */
+/* armed on ESCAPE hover/press: pre-promote the scene to its own GPU layer so the
+   dive's first frame doesn't pay the layer-creation cost (that was the hitch). */
+.lab-dive-arm > div:first-child {
+  will-change: transform;
+  transform: translateZ(0);
+}
+/* the scene flies in toward the hatch. backface-visibility forces a composited
+   layer; combined with the arm above, the layer already exists when the dive
+   starts, so there's no stall on frame 1. */
 .lab-diving > div:first-child {
   transform-origin: 50% 72%;
   animation: lab-dive 0.82s cubic-bezier(0.5, 0, 0.85, 0.3) forwards;
+  backface-visibility: hidden;
+  will-change: transform;
 }
 /* copy, nav, grain fall away */
 .lab-diving > div:not(:first-child):not(.lab-dive-flash) {
   animation: lab-dive-ui 0.5s ease forwards;
   pointer-events: none;
 }
-/* white threshold flash painted last */
+/* white threshold flash painted last — a single gradient layer, cheap to animate.
+   Carries the brightness ramp that used to live on the scene's filter. */
 .lab-dive-flash {
   position: absolute;
   inset: 0;
   z-index: 50;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 72%, #f2f4ec 0%, #e2e4dc 40%, #aeb6a4 100%);
+  background: radial-gradient(circle at 50% 72%, #f4f6ee 0%, #e2e4dc 38%, #aeb6a4 100%);
   opacity: 0;
+  will-change: opacity;
   animation: lab-dive-flash 0.82s ease-in forwards;
 }
 
