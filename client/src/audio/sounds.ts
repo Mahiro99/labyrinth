@@ -44,6 +44,16 @@ export const SOUNDS = {
     role: 'bed', volume: 0.5, preload: true,
   },
 
+  // --- creatures ---
+  // monster growl — a one-shot that fires when the player stands still too long (idle
+  // threshold tweak). Loud and meant to startle, so it plays at full level AND ducks
+  // every other sound while it sounds (see useGame + AudioEngine.duck). Preloaded so the
+  // first scare isn't a silent decode gap.
+  growl: {
+    url: '/sounds/creatures/dragon-studio-monster-growl-376892.mp3',
+    role: 'oneshot', volume: 0.9, pitchVar: 0.08, preload: true,
+  },
+
   // --- stateful loop: gain + playback rate track an "exertion" signal (step
   //     cadence), set every frame ---
   breath: {
@@ -63,13 +73,14 @@ export const SOUNDS = {
     url: '/sounds/weather/wind/soundreality-wind-blowing-457954.mp3',
     role: 'bed', volume: 0.3, preload: true,
   },
-  // deeper/tenser atmosphere (optional layer) — the factory drones. All four are layered
-  // together when the factory bed is on (useGame's MACHINE_BEDS), phasing into an evolving
-  // industrial wall. Opt-in + large, so none preload — they lazy-load on first factory use.
-  machine1: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-014-314825.mp3', role: 'bed', volume: 0.25 },
-  machine2: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-022-314833.mp3', role: 'bed', volume: 0.25 },
-  machine3: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-023-314834.mp3', role: 'bed', volume: 0.25 },
-  machine4: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-024-314835.mp3', role: 'bed', volume: 0.25 },
+  // distant factory machines — played SEQUENTIALLY as one-shots (one at a time, random
+  // gaps between) by useGame's factory scheduler, routed through the engine's "distant"
+  // bus (low-pass + reverb) so they read as machinery off in the distance rather than a
+  // wall of drone. Opt-in + large, so none preload — they lazy-load on first factory use.
+  machine1: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-014-314825.mp3', role: 'oneshot', volume: 0.6 },
+  machine2: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-022-314833.mp3', role: 'oneshot', volume: 0.6 },
+  machine3: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-023-314834.mp3', role: 'oneshot', volume: 0.6 },
+  machine4: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-024-314835.mp3', role: 'oneshot', volume: 0.6 },
 
   // --- thunder one-shots (lazy: big files, only needed in a storm) ---
   thunder1: { url: '/sounds/weather/thunder/freesound_community-big-thunder-clap-99753.mp3', role: 'oneshot', volume: 0.7, pitchVar: 0.06 },

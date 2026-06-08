@@ -86,10 +86,6 @@ export interface Tweaks {
   rainAmt: number
   stormClouds: number    // Storm cloud cover density (0..1) — own control, replaces cloudAmount in Storm
   lightning: boolean
-  grade: boolean
-  gradeAmt: number
-  bloom: boolean
-  bloomAmt: number
   vines: boolean
   vineStyle: string
   vineDensity: number
@@ -106,8 +102,6 @@ export interface Tweaks {
   skyBlue: number       // Clear-day sky blueness (0 = pale/hazy, 1 = deep blue)
   sunAz: number
   sunHeight: number
-  sunLight: boolean
-  lightContrast: number
   starDensity: number
   landmark: boolean
   spireCount: number
@@ -137,8 +131,6 @@ export interface Tweaks {
   showMinimap: boolean
   ao: boolean
   aoStrength: number
-  rim: boolean
-  rimStrength: number
   flicker: boolean
   flickerAmt: number
   haze: boolean
@@ -164,8 +156,13 @@ export interface Tweaks {
   rainVolume: number
   soundWind: boolean        // wind bed (follows the visual Wind toggle)
   windVolume: number
-  soundFactory: boolean     // the machines/* ambient drone bed
+  soundFactory: boolean     // distant factory machines, played sequentially with random gaps
   factoryVolume: number
+  factoryDistance: number   // how far off the machines sound (0 near … 1 far) — low-pass + reverb
+  soundGrowl: boolean       // monster growl when the player stands still too long
+  growlVolume: number       // growl loudness (0..1)
+  growlIdleSec: number      // seconds of no tile movement before it growls (1–15)
+  growlDuck: number         // how much the growl ducks every other sound while it plays (0..1)
   soundThunder: boolean
   thunderVolume: number
   thunderGap: number        // seconds between strikes (spacing) — drives flash + boom

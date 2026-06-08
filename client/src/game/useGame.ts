@@ -16,8 +16,14 @@ import { useMediaQuery } from '../lib/useMediaQuery'
 import type { GameState, Tweaks } from '../types'
 import type { AudioEngine } from '../audio'
 
-// the four factory drones, layered together when the factory bed is on (see updateAudio)
-const MACHINE_BEDS: SoundName[] = ['machine1', 'machine2', 'machine3', 'machine4'];
+// the four factory machines — played one at a time, in sequence with random gaps, through
+// the engine's "distant" bus (see updateAudio's factory scheduler)
+const MACHINES: SoundName[] = ['machine1', 'machine2', 'machine3', 'machine4'];
+
+// per-frame audio scheduler state (kept in a ref so it survives renders). `lastTileMove`
+// is bumped in step() on every actual tile step; `nextFactory` is the wall-clock time the
+// next machine should start; `lastGrowl`/`lastMachineIdx` gate re-triggers.
+interface AudioSched { lastTileMove: number; lastGrowl: number; nextFactory: number; lastMachineIdx: number }
 
 // One ambient bed on or off, idempotently — ramps to the live tweak gain when on,
 // fades out when off. The engine change-gates the per-frame setLoopGain, so a steady
@@ -30,16 +36,44 @@ function ensureBed(ae: AudioEngine, name: SoundName, on: boolean, gain: number) 
 // Per-frame audio: weather-driven beds, the exertion-tracking breath loop, master
 // mute/volume. Pulled out of the rAF loop so the loop body stays readable and ensureBed
 // isn't re-allocated each frame. Runs once per frame (only when an engine exists).
-function updateAudio(ae: AudioEngine, tw: Tweaks, exertionRef: { current: number }, now: number) {
+function updateAudio(ae: AudioEngine, tw: Tweaks, exertionRef: { current: number }, sched: AudioSched, now: number) {
   // beds: rain also needs Storm weather (so it doesn't drone in clear skies — that was
   // the always-on bug); wind follows the visual Wind toggle; factory is opt-in.
   ensureBed(ae, 'rain', tw.soundRain && tw.weather === 'Storm', tw.rainVolume);
   ensureBed(ae, 'wind', tw.soundWind && tw.wind, tw.windVolume);
-  // factory: all four machine drones layered. They're different lengths, so they phase
-  // against each other into an evolving industrial wall rather than an obvious loop. The
-  // per-bed gain is the factory volume split across the stack (×0.4 each ≈ comparable
-  // total loudness to one drone, without four full-gain loops clipping the master).
-  for (const m of MACHINE_BEDS) ensureBed(ae, m, tw.soundFactory, tw.factoryVolume * 0.4);
+
+  // factory: distant machines, ONE AT A TIME with random gaps (not a layered drone). Each
+  // machine is a one-shot on the engine's "distant" bus (low-pass + reverb → it reads as
+  // far-off). When the current one is due to have finished, wait a random beat, then fire a
+  // different machine. factoryDistance feeds the distant bus so it's tweakable.
+  if (tw.soundFactory) {
+    ae.setDistance(tw.factoryDistance);
+    if (now >= sched.nextFactory) {
+      let idx = sched.lastMachineIdx;
+      while (idx === sched.lastMachineIdx && MACHINES.length > 1) idx = Math.floor(Math.random() * MACHINES.length);
+      sched.lastMachineIdx = idx;
+      const name = MACHINES[idx];
+      ae.playOneShot(name, { gain: tw.factoryVolume, out: 'distant' });
+      const dur = ae.durationOf(name); // 0 until the buffer decodes
+      if (dur <= 0) sched.nextFactory = now + 500; // not loaded yet → retry shortly
+      else sched.nextFactory = now + (dur + 1.5 + Math.random() * 5) * 1000; // clip + 1.5–6.5s gap
+    }
+  } else if (sched.nextFactory !== 0) {
+    ae.stopDistant();      // fade out the current machine instead of letting it ring out
+    sched.nextFactory = 0; // re-arm so a machine fires promptly when toggled back on
+  }
+
+  // growl: stand still too long (no TILE move past the idle threshold) and a monster
+  // growls — bypassing the duck bus so it's loud, while ducking everything else for its
+  // duration (growlDuck), then the mix returns to normal. Re-arms each threshold, so the
+  // longer you loiter the more it growls.
+  if (tw.soundGrowl) {
+    const idleMs = tw.growlIdleSec * 1000;
+    if (now - sched.lastTileMove > idleMs && now - sched.lastGrowl > idleMs) {
+      ae.playOneShot('growl', { gain: tw.growlVolume, out: 'master', duck: tw.growlDuck });
+      sched.lastGrowl = now;
+    }
+  }
 
   // leaves: an ambient rustle bed that swells in and out on its own. A slow LFO (two
   // out-of-phase sines so the rise/fall isn't a metronome) breathes the gain between a
@@ -91,6 +125,9 @@ export function useGame(audio?: AudioEngine) {
   // drives the breath loop's gain AND its playback rate (faster steps → faster breath).
   const exertionRef = useRef(0);
   const lastStepRef = useRef(0); // timestamp of the previous step, for cadence
+  // per-frame audio scheduler (factory sequencing + idle-growl timing). lastTileMove is
+  // seeded on maze build so the player gets a grace period before the first growl.
+  const schedRef = useRef<AudioSched>({ lastTileMove: 0, lastGrowl: 0, nextFactory: 0, lastMachineIdx: -1 });
 
   const [hud, setHud] = useState({ steps: 0, charted: 0, reached: false, facing: 'S' });
   const [hint, setHint] = useState(true);
@@ -128,6 +165,7 @@ export function useGame(audio?: AudioEngine) {
     // gap <= ~260ms (held-move rate is 140ms) counts as fast; slow/first steps add little.
     const gap = lastStepRef.current ? now - lastStepRef.current : 9999;
     lastStepRef.current = now;
+    schedRef.current.lastTileMove = now; // reset the idle-growl timer on every real tile step
     const fast = Math.max(0, Math.min(1, (520 - gap) / 420)); // 1 at <=100ms gap, 0 by >=520ms
     exertionRef.current = Math.min(1, exertionRef.current + 0.10 + 0.22 * fast);
     const wasReached = gs.exitReached;
@@ -179,6 +217,7 @@ export function useGame(audio?: AudioEngine) {
     gsRef.current = gs;
     reveal(gs, performance.now());
     movedRef.current = false;
+    schedRef.current.lastTileMove = performance.now(); // grace period before the first growl
     setHint(true);
   }, []);
 
@@ -224,7 +263,7 @@ export function useGame(audio?: AudioEngine) {
         // weather-driven beds + the exertion-tracking breath loop + master mute/volume,
         // pulled into updateAudio so this loop body stays readable (see audio.md).
         const ae = audioRef.current;
-        if (ae) updateAudio(ae, tw, exertionRef, now);
+        if (ae) updateAudio(ae, tw, exertionRef, schedRef.current, now);
 
         // held-key movement
         let heldKey: string | null = null;

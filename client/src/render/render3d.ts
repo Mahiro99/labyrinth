@@ -1,5 +1,5 @@
 // render3d.ts — the shipped look: a Wolfenstein-style raycast down the corridor
-// you're facing. Layer-1 atmosphere (AO, edge rim, flicker, head-bob, turn-sway,
+// you're facing. Layer-1 atmosphere (AO, flicker, head-bob, turn-sway,
 // grain, world-anchored haze) is preserved; Layer-2 adds TEXTURED walls and a
 // per-world light model, both driven by getWorld(). Walls are drawn as
 // 1px-wide texture slices (the wall-x texcoord comes off the existing DDA), then
@@ -34,8 +34,6 @@ let _stormState: { next?: number | null; start?: number | null; az?: number; dur
 // mag 0..1 = brightness/closeness, az = bearing (for volume / future panning).
 let _onLightning: ((mag: number, az: number) => void) | null = null
 export function onLightning(fn: ((mag: number, az: number) => void) | null) { _onLightning = fn }
-// reusable downscale buffer for the bloom pass
-let _bloomCCache: HTMLCanvasElement | null = null
 
 // World is referenced via ReturnType so RenderCtx stays in lockstep with getWorld.
 type World = ReturnType<typeof getWorld>
@@ -81,12 +79,6 @@ interface RenderCtx {
   flashAz: number
   fcx: number
   fcy: number
-  // film grade
-  gradeAmt: number
-  gShadow: number[]
-  gTint: number[]
-  gTintA: number
-  gSat: number
   // camera shake
   bobY: number
   roll: number
@@ -99,8 +91,6 @@ interface RenderCtx {
   // sun/moon direction
   sunAz: number
   sunEl: number
-  sdx: number
-  sdy: number
   // raycast cadence
   step: number
   aoS: number
@@ -194,25 +184,6 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   }
   const fcx = Math.cos(flashAz), fcy = Math.sin(flashAz);
 
-  // ---- FILM GRADE targets (also encodes DAWN/DUSK via sun height). A washed,
-  // slightly desaturated, black-lifted look. Applied as cheap blend passes at the
-  // very end — no per-pixel work. gShadow = milky shadow floor, gTint = color cast.
-  const gradeAmt = (world.id === 'mazerunner' && tw.grade) ? (tw.gradeAmt == null ? 0.6 : tw.gradeAmt) : 0;
-  let gShadow = [0, 0, 0], gTint = [0, 0, 0], gTintA = 0, gSat = 0;
-  if (gradeAmt > 0) {
-    if (!daylight) { gShadow = [24, 30, 44]; gTint = [46, 60, 88]; gTintA = 0.12; gSat = 0.34; }       // cool night blue
-    else if (overcast) { gShadow = [64, 72, 70]; gTint = [110, 122, 114]; gTintA = 0.15; gSat = 0.48; } // flat grey-green
-    else {
-      const warm = Math.max(0, 1 - (tw.sunHeight == null ? 0.32 : tw.sunHeight) / 0.42); // low sun → amber dawn/dusk
-      // high-sun end is now a neutral-cool cast (not grey-green) with a lighter
-      // desaturate, so the Clear-day blue sky survives instead of being washed grey;
-      // the low-sun (warm) end is unchanged — dawn/dusk still go amber.
-      gShadow = mix([60, 66, 74], [56, 44, 32], warm);
-      gTint = mix([120, 130, 142], [158, 120, 76], warm);
-      gTintA = 0.08 + 0.07 * warm; gSat = 0.16 + 0.10 * warm;
-    }
-  }
-
   // --- camera shake transform: head-bob (vertical) + turn sway (roll) ---
   const bobY = (gs.bobUnit || 0) * H * 0.020;
   const roll = (gs.swayRoll || 0) * 0.06;
@@ -226,14 +197,13 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   // on wider screens. Bump the cap (1.1) for more portrait width, drop to 1 for off.
   const fovBoost = Math.min(1.1, Math.max(1, 1.25 / (W / H)));
   const FOV = (Math.PI / 2.6) * fovBoost, half = Math.tan(FOV / 2);
-  // sun/moon world direction (shared by the sky and the directional wall lighting)
+  // sun/moon world direction (drives the sky sun/moon disc + its bearing)
   const sunAz = (tw.sunAz == null ? 30 : tw.sunAz) * 0.0174533;
   const sunEl = tw.sunHeight == null ? 0.32 : tw.sunHeight;
-  const sdx = Math.cos(sunAz), sdy = Math.sin(sunAz);
   const step = 2;
   const aoS = tw.ao ? tw.aoStrength : 0;
   const sliceW = step + 0.6;
-  // per-column records for edge detection (rim light + corner AO) + vines
+  // per-column records for edge detection (corner AO) + vines
   const cN: number[] = [], cX: number[] = [], cDepth: number[] = [], cTop: number[] = [], cBot: number[] = [], cU: number[] = [];
 
   // light value at a given depth (matches the wall light model)
@@ -244,8 +214,12 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   // --- WIND: cheap sine sway. Tips move more than anchors (pendulum). One gust
   // envelope shared, plus a per-element phase. No new draw calls — basically free.
   const windAmt = tw.wind ? tw.windAmt : 0;
+  // map the 0..1 strength slider to a sway amplitude that runs from dead-still to a
+  // strong gale: the quadratic term keeps the low end a faint breeze while the top of
+  // the slider really whips (≈56px tip sway vs. the old flat 24 — "LOTS of movement").
+  const windPow = windAmt * (14 + 42 * windAmt);
   const gust = 0.5 + 0.5 * Math.sin(now * 0.00035) + 0.18 * Math.sin(now * 0.0013 + 1.7);
-  const windAt = (f: number, ph: number) => windAmt * 24 * Math.pow(f < 0 ? 0 : f, 1.4) * gust * Math.sin(now * 0.0017 + ph);
+  const windAt = (f: number, ph: number) => windPow * Math.pow(f < 0 ? 0 : f, 1.4) * gust * Math.sin(now * 0.0017 + ph);
 
   const rc: RenderCtx = {
     gs, tw, now, GW, GH, tiles,
@@ -253,10 +227,9 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
     flick, breathe,
     weather, overcast, raining, storming, wetness, cloud, skyTop, skyMid, skyHorizon,
     flash, flashAz, fcx, fcy,
-    gradeAmt, gShadow, gTint, gTintA, gSat,
     bobY, roll,
     eyeX, eyeY, ang, FOV, half,
-    sunAz, sunEl, sdx, sdy,
+    sunAz, sunEl,
     step, aoS, sliceW,
     cN, cX, cDepth, cTop, cBot, cU,
     lightAt, windAt,
@@ -287,8 +260,6 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   drawRain(ctx, rc);
   drawVignette(ctx, rc);
   drawLightningFlash(ctx, rc);
-  drawBloom(ctx, rc);
-  drawFilmGrade(ctx, rc);
   drawFilmGrain(ctx, rc);
   // (facing + controls now live in the React HUD pill, not on the canvas)
 }
@@ -571,10 +542,10 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 
 // ---- WALLS: the DDA column loop. Casts one ray per `step` columns, draws the
 // textured slice shaded toward fog by distance, applies AO, then a second pass for
-// the edge-rim/corner-AO. Populates the per-column arrays the later layers read. ----
+// the corner-AO. Populates the per-column arrays the later layers read. ----
 function drawWalls(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { gs, tw, world, daylight, W, H, R, fall, flick, flash, fcx, fcy, eyeX, eyeY, ang, half,
-    sunEl, sdx, sdy, step, aoS, sliceW, GW, GH, tiles, cN, cX, cDepth, cTop, cBot, cU } = rc;
+    step, aoS, sliceW, GW, GH, tiles, cN, cX, cDepth, cTop, cBot, cU } = rc;
   const maze = gs.maze;
   // nearest-neighbour for the 1px texture slices — ~4x faster than smoothed and
   // actually crisper at this scale (was the single biggest render cost).
@@ -619,13 +590,6 @@ function drawWalls(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     }
     if (L > 1.1) L = 1.1; if (L < 0) L = 0;
     let Ls = side === 1 ? L * world.sideShade : L;
-    // directional light: walls facing the sun/moon brighten, walls facing away dim.
-    // normal is an axis vector (the DDA step that caused the hit). One dot product.
-    if (tw.sunLight) {
-      const ndotl = side === 0 ? (-stX) * sdx : (-stY) * sdy;
-      const contrast = (tw.lightContrast == null ? 0.5 : tw.lightContrast) * (daylight ? (0.3 + 0.5 * sunEl) : 0.22);
-      Ls *= (1 + contrast * ndotl); if (Ls < 0) Ls = 0;
-    }
     // lightning flash floods the corridor — walls facing the bolt brighten most
     if (flash > 0) {
       const fn = side === 0 ? (-stX) * fcx : (-stY) * fcy;
@@ -659,9 +623,8 @@ function drawWalls(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
   ctx.imageSmoothingEnabled = smooth;
 
-  // edge rim light + corner crease AO at depth/cell/side discontinuities
-  if (tw.rim || aoS > 0) {
-    const rimC = mix(daylight ? [210, 216, 208] : world.glow, [255, 255, 255], 0.4);
+  // corner crease AO at depth/cell/side discontinuities
+  if (aoS > 0) {
     for (let j = 1; j < cN.length; j++) {
       if (cN[j] === cN[j - 1]) continue;          // same wall cell — no visible seam
       const nearer = cDepth[j] < cDepth[j - 1] ? j : j - 1;
@@ -669,12 +632,7 @@ function drawWalls(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       const near = daylight ? 0.7 : Math.max(0, 1 - cDepth[nearer] / (R * 1.4)) * flick;
       if (near <= 0) continue;
       const t0 = cTop[nearer], h0 = cBot[nearer] - t0;
-      if (aoS > 0) { ctx.fillStyle = rgba([0, 0, 0], aoS * 0.5 * near); ctx.fillRect(ex - 1, t0, 2, h0); }
-      if (tw.rim) {
-        const rx = (nearer === j) ? ex + 0.5 : ex - 2;
-        ctx.fillStyle = rgba(rimC, tw.rimStrength * near);
-        ctx.fillRect(rx, t0, 1.5, h0);
-      }
+      ctx.fillStyle = rgba([0, 0, 0], aoS * 0.5 * near); ctx.fillRect(ex - 1, t0, 2, h0);
     }
   }
 }
@@ -996,7 +954,11 @@ function drawVines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       const halfW = (0.5 / slots) * (0.45 + 0.55 * _h2(cell, si * 131 + 13));
       if (Math.abs(u - center) > halfW) continue;
       const lr = _h2(cell, si * 131 + 17);
-      let len = tw.vineLength * (1 - tw.vineRandomness * 0.8 * lr);
+      // randomized strand length around the vineLength setting — each vine is shorter OR
+      // longer (not just capped), so the curtain has a natural mix instead of a flat hem.
+      // lr is a stable per-strand hash → varied across the whole set; vineRandomness widens
+      // the spread (0 ≈ uniform, 1 ≈ wildly varied).
+      let len = tw.vineLength * (1 + (lr - 0.5) * (0.4 + 1.4 * tw.vineRandomness));
       len *= 0.82 + 0.18 * _h2(cell * 733 + (col | 0), 3);          // ragged silhouette
       const vlen = Math.max(0.02, len) * lineH;
       const lf = lightAt(cDepth[j]);
@@ -1075,12 +1037,12 @@ function drawHaze(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       if (cDepth[ci] !== undefined && depth > cDepth[ci] + 0.05) continue;
       const dist = Math.hypot(dxw, dyw);
       let lightF;
-      if (daylight) lightF = Math.max(0.2, 1 - dist / world.viewDist);
+      if (daylight) lightF = Math.max(0.35, 1 - dist / world.viewDist); // brighter floor so day spores read
       else lightF = Math.pow(Math.max(0, 1 - dist / (R * 1.15)), fall);
       if (lightF <= 0.04) continue;
       // count scales via qty(); per-mote alpha scales linearly so the layer goes
       // from a faint veil to thick fog without ever fully washing out the frame.
-      const a = 0.7 * tw.hazeAmt * lightF * (0.72 + 0.28 * flick);
+      const a = 0.95 * tw.hazeAmt * lightF * (0.72 + 0.28 * flick); // more visible (day + night)
       const rad = Math.max(0.4, m.sz * (1.3 / depth));   // parallax size
       ctx.fillStyle = rgba(tint, a);
       ctx.beginPath(); ctx.arc(sx, sy, rad, 0, 7); ctx.fill();
@@ -1147,43 +1109,6 @@ function drawLightningFlash(ctx: CanvasRenderingContext2D, rc: RenderCtx): void 
   if (flash > 0) {
     ctx.fillStyle = `rgba(226,234,250,${0.55 * flash})`;
     ctx.fillRect(0, 0, W, H);
-  }
-}
-
-// ---- BLOOM: downscale the frame and add it back with 'lighter' — soft highlight
-// glow (sky, sun, lightning, headlamp). Two drawImages, cheap. ----
-function drawBloom(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { tw, gradeAmt, W, H } = rc;
-  if (tw.bloom && gradeAmt >= 0 && (tw.bloom)) {
-    const cw = ctx.canvas.width, ch = ctx.canvas.height;
-    const bw = Math.max(8, (cw / 10) | 0), bh = Math.max(8, (ch / 10) | 0);
-    let bc = _bloomCCache;
-    if (!bc) bc = _bloomCCache = document.createElement('canvas');
-    if (bc.width !== bw || bc.height !== bh) { bc.width = bw; bc.height = bh; }
-    const bx = bc.getContext('2d')!;
-    bx.clearRect(0, 0, bw, bh); bx.imageSmoothingEnabled = true;
-    bx.drawImage(ctx.canvas, 0, 0, cw, ch, 0, 0, bw, bh);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (tw.bloomAmt == null ? 0.32 : tw.bloomAmt);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(bc, 0, 0, bw, bh, 0, 0, W, H);
-    ctx.restore();
-  }
-}
-
-// ---- FILM GRADE: lift blacks (lighten), desaturate (saturation blend), tint wash.
-// Three full-screen fillRects with blend modes — no per-pixel work. ----
-function drawFilmGrade(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { gradeAmt, gShadow, gTint, gTintA, gSat, W, H } = rc;
-  if (gradeAmt > 0) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighten'; ctx.globalAlpha = gradeAmt * 0.55;
-    ctx.fillStyle = rgba(gShadow, 1); ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'saturation'; ctx.globalAlpha = gradeAmt * gSat;
-    ctx.fillStyle = 'hsl(0,0%,50%)'; ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = gradeAmt * gTintA;
-    ctx.fillStyle = rgba(gTint, 1); ctx.fillRect(0, 0, W, H);
-    ctx.restore();
   }
 }
 

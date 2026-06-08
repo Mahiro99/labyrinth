@@ -43,19 +43,30 @@ function Row({ rank, name, steps, time, mine, delay, mobile = false }: RowProps)
   );
 }
 
-export function LeaderboardView({ mobile = false }: { mobile?: boolean }) {
+export function LeaderboardView({ mobile = false, onClose }: { mobile?: boolean; onClose?: () => void }) {
   const reset = useCountdown();
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+    // click the dimmed area outside the card (or the ✕) to return to PLAY — it reads as a
+    // modal, so it should dismiss like one. The card stops propagation.
+    <div onClick={() => onClose?.()} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
       justifyContent: 'center', fontFamily: "'IBM Plex Mono', monospace", animation: 'lab-fade 0.5s ease both',
+      cursor: onClose ? 'pointer' : 'default',
       padding: `calc(${mobile ? 68 : 92}px + env(safe-area-inset-top)) calc(${mobile ? 14 : 24}px + env(safe-area-inset-right)) calc(${mobile ? 20 : 40}px + env(safe-area-inset-bottom)) calc(${mobile ? 14 : 24}px + env(safe-area-inset-left))` }}>
-      <div style={{ width: 640, maxWidth: '100%', maxHeight: '100%', display: 'flex',
+      <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', cursor: 'default', width: 640, maxWidth: '100%', maxHeight: '100%', display: 'flex',
         flexDirection: 'column', background: 'rgba(30,35,27,0.92)',
         border: '1px solid rgba(226,228,220,0.14)', borderRadius: 5, padding: mobile ? '16px 14px 14px' : '26px 26px 22px',
         boxShadow: '0 30px 80px rgba(4,6,4,0.5)' }}>
+        {/* close — returns to PLAY */}
+        {onClose && (
+          <button onClick={onClose} title="Close" aria-label="Close"
+            style={{ position: 'absolute', top: mobile ? 8 : 14, right: mobile ? 8 : 16, zIndex: 1,
+              background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer',
+              fontSize: 15, fontFamily: 'inherit', lineHeight: 1, width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        )}
         {/* meta row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 12, flexShrink: 0 }}>
+          marginBottom: 12, flexShrink: 0, paddingRight: mobile ? 30 : 34 }}>
           <div style={{ color: 'var(--ink-soft)', fontSize: 12, letterSpacing: '0.34em',
             whiteSpace: 'nowrap' }}>
             NO. {DAY_NO}</div>

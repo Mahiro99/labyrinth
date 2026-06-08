@@ -12,6 +12,25 @@
 import { SOUNDS, defOf, type SoundName } from './sounds'
 import { clamp01 } from '../lib/num'
 
+// A cheap synthetic reverb impulse: exponentially-decaying stereo noise. Convolving a
+// dry signal with this gives it a sense of space — used by the "distant" bus so the
+// factory machines sound like they're echoing across a distance, not right next to you.
+function makeImpulse(ctx: BaseAudioContext, seconds: number, decay: number): AudioBuffer {
+  const len = Math.max(1, Math.floor(ctx.sampleRate * seconds))
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate)
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buf.getChannelData(ch)
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay)
+  }
+  return buf
+}
+
+// distance (0 near … 1 far) → low-pass cutoff in Hz. Far = darker/muffled (highs lost
+// over distance). Exponential so the knob feels even across its range.
+const distCutoff = (d: number) => 7000 * Math.pow(350 / 7000, clamp01(d))
+// distance → reverb wet amount. Far = more echo/space.
+const distWet = (d: number) => 0.05 + 0.55 * clamp01(d)
+
 interface Loop {
   src: AudioBufferSourceNode
   gain: GainNode
@@ -28,6 +47,20 @@ interface Loop {
 export class AudioEngine {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
+  // duckBus sits between (almost) every source and master. Ramping it down briefly
+  // "ducks" the whole mix under a louder event (the growl) without touching each source.
+  // The growl itself bypasses this (connects straight to master) so it isn't ducked.
+  private duckBus: GainNode | null = null
+  // the "distant" send: source → distantIn → low-pass → (dry + reverb) → duckBus.
+  // Factory machines route here so they read as far-off. distance is tweakable.
+  private distantIn: GainNode | null = null
+  private distantLP: BiquadFilterNode | null = null
+  private distantWet: GainNode | null = null
+  private _distance = 0.6
+  // the in-flight factory one-shot (only one plays at a time), tracked so the factory can
+  // be faded out promptly when toggled off instead of ringing out for the full clip.
+  private _distantSrc: AudioBufferSourceNode | null = null
+  private _distantGain: GainNode | null = null
   private buffers = new Map<SoundName, AudioBuffer>()
   private loading = new Map<SoundName, Promise<AudioBuffer | null>>()
   private loops = new Map<SoundName, Loop>() // active beds + breath, keyed by name
@@ -42,12 +75,64 @@ export class AudioEngine {
   private ensureCtx(): AudioContext {
     if (!this.ctx) {
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      this.ctx = new Ctor()
-      this.master = this.ctx.createGain()
+      const ctx = this.ctx = new Ctor()
+
+      // master: global volume / mute → speakers
+      this.master = ctx.createGain()
       this.master.gain.value = this._muted ? 0 : this._volume
-      this.master.connect(this.ctx.destination)
+      this.master.connect(ctx.destination)
+
+      // duck bus: everything routes through here (except the growl), so a single ramp
+      // ducks the whole mix under the growl, then restores it.
+      this.duckBus = ctx.createGain()
+      this.duckBus.gain.value = 1
+      this.duckBus.connect(this.master)
+
+      // distant send: distantIn → low-pass → duckBus (dry, muffled) and → reverb → wet → duckBus
+      this.distantIn = ctx.createGain()
+      this.distantLP = ctx.createBiquadFilter()
+      this.distantLP.type = 'lowpass'
+      this.distantLP.frequency.value = distCutoff(this._distance)
+      this.distantLP.Q.value = 0.7
+      this.distantIn.connect(this.distantLP)
+      this.distantLP.connect(this.duckBus) // dry (muffled)
+      const reverb = ctx.createConvolver()
+      reverb.buffer = makeImpulse(ctx, 2.2, 2.6)
+      this.distantWet = ctx.createGain()
+      this.distantWet.gain.value = distWet(this._distance)
+      this.distantLP.connect(reverb)
+      reverb.connect(this.distantWet)
+      this.distantWet.connect(this.duckBus) // wet (reverb tail)
     }
     return this.ctx
+  }
+
+  // Briefly duck the whole mix (everything on duckBus) under a louder event, then
+  // restore. `amount` 0..1 = how far down (0.6 → mix drops to 40%); holdSec ≈ how long
+  // the event lasts. The growl uses this so it stands out, then volumes return to normal.
+  duck(amount: number, holdSec = 1.5) {
+    if (!this.duckBus || !this.ctx) return
+    const lo = clamp01(1 - clamp01(amount))
+    const t = this.ctx.currentTime
+    const attack = 0.12, release = 0.7
+    const g = this.duckBus.gain
+    g.cancelScheduledValues(t)
+    g.setValueAtTime(g.value, t)
+    g.linearRampToValueAtTime(lo, t + attack)
+    g.setValueAtTime(lo, t + attack + Math.max(0, holdSec))
+    g.linearRampToValueAtTime(1, t + attack + Math.max(0, holdSec) + release)
+  }
+
+  // Tweak how far away the "distant" bus sounds (0 near … 1 far): darker low-pass +
+  // more reverb as it goes out. Cheap to call every frame (skips when unchanged).
+  setDistance(d: number) {
+    d = clamp01(d)
+    if (d === this._distance) return
+    this._distance = d
+    if (!this.ctx || !this.distantLP || !this.distantWet) return
+    const t = this.ctx.currentTime
+    this.distantLP.frequency.setTargetAtTime(distCutoff(d), t, 0.05)
+    this.distantWet.gain.setTargetAtTime(distWet(d), t, 0.05)
   }
 
   // Call from the first click/keydown. Resumes a suspended context and kicks off
@@ -74,6 +159,12 @@ export class AudioEngine {
 
   get muted() { return this._muted }
   get volume() { return this._volume }
+
+  // Decoded length of a sound in seconds (0 if not loaded yet). The factory scheduler
+  // uses this to start the next machine only after the current one finishes.
+  durationOf(name: SoundName): number {
+    return this.buffers.get(name)?.duration ?? 0
+  }
 
   // The game loop pushes these every frame; skip the redundant GainNode write unless
   // the value actually changed (it only moves on a mute toggle / volume drag).
@@ -127,7 +218,11 @@ export class AudioEngine {
 
   // Fire and forget. opts.gain scales the manifest volume (e.g. by distance/intensity);
   // opts.rate overrides pitch (else manifest pitchVar applies a small random wobble).
-  playOneShot(name: SoundName, opts: { gain?: number; rate?: number } = {}) {
+  // opts.out picks the routing: 'duck' (default — through the duck bus), 'distant' (the
+  // low-pass+reverb send, for far-off machines), or 'master' (bypass the duck, for the
+  // growl so it isn't ducked by its own duck request). opts.duck (0..1) ducks the rest of
+  // the mix for this clip's duration.
+  playOneShot(name: SoundName, opts: { gain?: number; rate?: number; out?: 'duck' | 'distant' | 'master'; duck?: number } = {}) {
     if (!this.unlocked || this._muted) {
       // dev-only breadcrumb: if movement is silent, this tells you WHY at a glance —
       // still locked (no successful unlock gesture) vs. muted. Remove once audio is happy.
@@ -147,9 +242,29 @@ export class AudioEngine {
     src.playbackRate.value = opts.rate ?? (pv ? 1 + (Math.random() * 2 - 1) * pv : 1)
     const g = ctx.createGain()
     g.gain.value = def.volume * (opts.gain ?? 1)
-    src.connect(g); g.connect(this.master!)
+    const dest = opts.out === 'master' ? this.master!
+      : opts.out === 'distant' ? this.distantIn!
+      : this.duckBus!
+    src.connect(g); g.connect(dest)
     src.start()
-    src.onended = () => { src.disconnect(); g.disconnect() }
+    if (opts.duck && opts.duck > 0) this.duck(opts.duck, buf.duration)
+    if (opts.out === 'distant') { this._distantSrc = src; this._distantGain = g } // track for stopDistant()
+    src.onended = () => {
+      src.disconnect(); g.disconnect()
+      if (this._distantSrc === src) { this._distantSrc = null; this._distantGain = null }
+    }
+  }
+
+  // Fade out + stop the current factory one-shot (used when the factory is toggled off,
+  // so a long machine clip doesn't keep playing for tens of seconds).
+  stopDistant(fadeSec = 0.5) {
+    if (!this.ctx || !this._distantSrc || !this._distantGain) return
+    const src = this._distantSrc
+    const t = this.ctx.currentTime
+    const g = this._distantGain.gain
+    g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(0, t + fadeSec)
+    setTimeout(() => { try { src.stop() } catch { /* already ended */ } }, (fadeSec + 0.05) * 1000)
+    this._distantSrc = null; this._distantGain = null
   }
 
   // --- looping beds + breath --------------------------------------------------
@@ -174,7 +289,7 @@ export class AudioEngine {
     const gain = ctx.createGain()
     const target = defOf(name).volume
     gain.gain.value = 0
-    src.connect(gain); gain.connect(this.master!)
+    src.connect(gain); gain.connect(this.duckBus!) // beds duck under the growl too
     src.start()
     gain.gain.linearRampToValueAtTime(target, ctx.currentTime + Math.max(0.001, fadeSec))
     this.loops.set(name, { src, gain, target, requested: NaN, stopTimer: null })
@@ -246,5 +361,8 @@ export class AudioEngine {
     void this.ctx?.close().catch(() => { /* already closed */ })
     this.ctx = null
     this.master = null
+    this.duckBus = null
+    this.distantIn = this.distantLP = this.distantWet = null
+    this._distantSrc = null; this._distantGain = null
   }
 }

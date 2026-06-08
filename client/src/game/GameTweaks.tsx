@@ -39,8 +39,6 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
         <TweakSlider label="Cloud shade" value={t.cloudShade} min={0} max={1} step={0.05} onChange={(v) => setTweak('cloudShade', v)} />
         <TweakColor label="Cloud color" value={t.cloudColor} options={['#bcc3c7', '#e8eaec', '#9aa6b0', '#c9b9a4', '#7a8694', '#4a525c', '#3a4250']} onChange={(v) => setTweak('cloudColor', v)} />
       </>}
-      <TweakToggle label="Directional light" value={t.sunLight} onChange={(v) => setTweak('sunLight', v)} />
-      {t.sunLight && <TweakSlider label="Light contrast" value={t.lightContrast} min={0} max={1} step={0.05} onChange={(v) => setTweak('lightContrast', v)} />}
 
       <TweakSection label="Ground" />
       <TweakToggle label="Floor grates" value={t.floorDetail} onChange={(v) => setTweak('floorDetail', v)} />
@@ -90,17 +88,9 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       <TweakToggle label="Light flicker" value={t.flicker} onChange={(v) => setTweak('flicker', v)} />
       {t.flicker && <TweakSlider label="Flicker amount" value={t.flickerAmt} min={0} max={1} step={0.05} onChange={(v) => setTweak('flickerAmt', v)} />}
 
-      <TweakSection label="Film grade" />
-      <TweakToggle label="Grade" value={t.grade} onChange={(v) => setTweak('grade', v)} />
-      {t.grade && <TweakSlider label="Grade strength" value={t.gradeAmt} min={0} max={1} step={0.05} onChange={(v) => setTweak('gradeAmt', v)} />}
-      <TweakToggle label="Bloom" value={t.bloom} onChange={(v) => setTweak('bloom', v)} />
-      {t.bloom && <TweakSlider label="Bloom strength" value={t.bloomAmt} min={0} max={0.7} step={0.02} onChange={(v) => setTweak('bloomAmt', v)} />}
-
       <TweakSection label="Atmosphere" />
       <TweakToggle label="Ambient occlusion" value={t.ao} onChange={(v) => setTweak('ao', v)} />
       {t.ao && <TweakSlider label="AO strength" value={t.aoStrength} min={0} max={1} step={0.05} onChange={(v) => setTweak('aoStrength', v)} />}
-      <TweakToggle label="Edge rim light" value={t.rim} onChange={(v) => setTweak('rim', v)} />
-      {t.rim && <TweakSlider label="Rim strength" value={t.rimStrength} min={0} max={1} step={0.05} onChange={(v) => setTweak('rimStrength', v)} />}
       <TweakToggle label="Airborne spores" value={t.haze} onChange={(v) => setTweak('haze', v)} />
       {t.haze && <TweakSlider label="Spore density" value={t.hazeAmt} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('hazeAmt', v)} />}
       <TweakToggle label="Film grain" value={t.grain} onChange={(v) => setTweak('grain', v)} />

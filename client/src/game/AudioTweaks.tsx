@@ -54,8 +54,24 @@ export function AudioTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits:
       {/* wind follows the visual Wind toggle */}
       <TweakToggle label={t.wind ? 'Wind' : 'Wind (needs Wind on)'} value={t.soundWind} onChange={(v) => setTweak('soundWind', v)} />
       {t.soundWind && <VolSlider label="Wind volume" k="windVolume" />}
-      <TweakToggle label="Factory drone" value={t.soundFactory} onChange={(v) => setTweak('soundFactory', v)} />
-      {t.soundFactory && <VolSlider label="Factory volume" k="factoryVolume" />}
+      {/* distant factory machines, played one at a time with random gaps */}
+      <TweakToggle label="Distant machines" value={t.soundFactory} onChange={(v) => setTweak('soundFactory', v)} />
+      {t.soundFactory && <>
+        <VolSlider label="Machine volume" k="factoryVolume" />
+        {/* how far off they sound — 0 close & clear, 100 muffled & echoing in the distance */}
+        <VolSlider label="Distance" k="factoryDistance" />
+      </>}
+
+      <TweakSection label="Creatures" />
+      {/* monster growl when the player stands still too long — ducks everything else */}
+      <TweakToggle label="Monster growl" value={t.soundGrowl} onChange={(v) => setTweak('soundGrowl', v)} />
+      {t.soundGrowl && <>
+        <VolSlider label="Growl volume" k="growlVolume" />
+        {/* idle time before it growls — your 1–15s knob */}
+        <TweakSlider label="Growl after idle" value={t.growlIdleSec} min={1} max={15} step={1} unit="s" onChange={(v) => setTweak('growlIdleSec', v)} />
+        {/* how much it lowers every other sound while it growls */}
+        <VolSlider label="Ducks others by" k="growlDuck" />
+      </>}
 
       <TweakSection label="Thunder" />
       {/* the strike CADENCE lives in visual Tweaks > Storm (one timer drives flash+boom);

@@ -68,7 +68,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
 
       {/* views */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 10 }}>
-        {view === 'play' ? <PlayView onEnter={dive} onArm={() => setArmed(true)} mobile={mobile} /> : <LeaderboardView mobile={mobile} />}
+        {view === 'play' ? <PlayView onEnter={dive} onArm={() => setArmed(true)} mobile={mobile} /> : <LeaderboardView mobile={mobile} onClose={() => go('play')} />}
       </div>
 
       <div className="lab-grain" style={{ zIndex: 12 }}></div>
