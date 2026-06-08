@@ -7,7 +7,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { makeMaze, computeLight, canStand } from '../engine'
 import { drawFirstPerson, drawMinimap, onLightning } from '../render'
-import { THUNDERS } from '../audio'
+import { THUNDERS, type SoundName } from '../audio'
 import { useTweaks } from '../tweaks'
 import { TWEAK_DEFAULTS, DAILY_SEED, MAZE_CELLS, KEY_DIR } from './defaults'
 import { useKeyboard } from './useKeyboard'
@@ -15,6 +15,67 @@ import { useTouch } from './useTouch'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import type { GameState, Tweaks } from '../types'
 import type { AudioEngine } from '../audio'
+
+// the four factory drones, layered together when the factory bed is on (see updateAudio)
+const MACHINE_BEDS: SoundName[] = ['machine1', 'machine2', 'machine3', 'machine4'];
+
+// One ambient bed on or off, idempotently — ramps to the live tweak gain when on,
+// fades out when off. The engine change-gates the per-frame setLoopGain, so a steady
+// bed costs ~nothing here.
+function ensureBed(ae: AudioEngine, name: SoundName, on: boolean, gain: number) {
+  if (on) { ae.startLoop(name, 1.5); ae.setLoopGain(name, gain, 0.4); }
+  else ae.stopLoop(name, 1.0);
+}
+
+// Per-frame audio: weather-driven beds, the exertion-tracking breath loop, master
+// mute/volume. Pulled out of the rAF loop so the loop body stays readable and ensureBed
+// isn't re-allocated each frame. Runs once per frame (only when an engine exists).
+function updateAudio(ae: AudioEngine, tw: Tweaks, exertionRef: { current: number }, now: number) {
+  // beds: rain also needs Storm weather (so it doesn't drone in clear skies — that was
+  // the always-on bug); wind follows the visual Wind toggle; factory is opt-in.
+  ensureBed(ae, 'rain', tw.soundRain && tw.weather === 'Storm', tw.rainVolume);
+  ensureBed(ae, 'wind', tw.soundWind && tw.wind, tw.windVolume);
+  // factory: all four machine drones layered. They're different lengths, so they phase
+  // against each other into an evolving industrial wall rather than an obvious loop. The
+  // per-bed gain is the factory volume split across the stack (×0.4 each ≈ comparable
+  // total loudness to one drone, without four full-gain loops clipping the master).
+  for (const m of MACHINE_BEDS) ensureBed(ae, m, tw.soundFactory, tw.factoryVolume * 0.4);
+
+  // leaves: an ambient rustle bed that swells in and out on its own. A slow LFO (two
+  // out-of-phase sines so the rise/fall isn't a metronome) breathes the gain between a
+  // quiet floor and the leaves volume; `leavesAmt` (intensity) sets how deep the swell
+  // goes — at 0 it's a steady rustle, at 1 it fades nearly silent between gusts.
+  if (tw.soundLeaves) {
+    ae.startLoop('leaves', 2.0);
+    const lfo = 0.5 + 0.5 * (0.6 * Math.sin(now / 4300) + 0.4 * Math.sin(now / 9100)); // 0..1, ~7s period
+    const depth = tw.leavesAmt;                 // 0 = constant, 1 = full swell to the floor
+    const swell = (1 - depth) + depth * lfo;    // scales the ceiling down by up to `depth`
+    ae.setLoopGain('leaves', tw.leavesVolume * swell, 0.5);
+  } else {
+    ae.stopLoop('leaves', 1.5);
+  }
+
+  // breath: gain + rate track "exertion" (step cadence), scaled by breathAmt. Louder in
+  // a storm so it carries over the rain bed. Unlike the beds above its target changes
+  // every frame — that continuous modulation is the point (setLoopGain ramps each frame).
+  // Exertion decays when no step is taken (idle → breathing calms) and is bumped up per
+  // step in step() — so the breath rises as you move and settles when you stop.
+  exertionRef.current = Math.max(0, exertionRef.current - 0.010); // recover when idle
+  const ex = exertionRef.current;
+  if (tw.soundBreathing) {
+    ae.startLoop('breath', 1.5);
+    const stormLift = tw.weather === 'Storm' ? 0.25 : 0; // sit above the rain
+    // floor 0.5 (always audibly breathing) → +1.0 at full exertion; ×breathAmt (default
+    // 0.5) shapes how much stepping swells it past the floor, then ×breathVolume scales
+    // the whole signal. Defaults land idle breath at ~0.25 and a hard sprint at ~0.75.
+    ae.setLoopGain('breath', (0.5 + stormLift + 1.0 * ex) * tw.breathAmt * tw.breathVolume, 0.25);
+    ae.setLoopRate('breath', 1 + 0.5 * ex, 0.3); // faster steps → faster breathing
+  } else {
+    ae.stopLoop('breath', 1.0);
+  }
+
+  ae.setMuted(tw.audioMuted); ae.setVolume(tw.audioVolume);
+}
 
 export function useGame(audio?: AudioEngine) {
   // engine in a ref so the rAF loop + step() always see the latest without re-binding
@@ -31,7 +92,7 @@ export function useGame(audio?: AudioEngine) {
   const exertionRef = useRef(0);
   const lastStepRef = useRef(0); // timestamp of the previous step, for cadence
 
-  const [hud, setHud] = useState({ steps: 0, charted: 0, reached: false });
+  const [hud, setHud] = useState({ steps: 0, charted: 0, reached: false, facing: 'S' });
   const [hint, setHint] = useState(true);
   // touch (coarse-pointer) drives swipe-appropriate control hints, not the input
   // wiring itself — swipe listeners are always attached and simply never fire on a
@@ -54,19 +115,15 @@ export function useGame(audio?: AudioEngine) {
     const ae = audioRef.current;
     const tx = gs.px + dx, ty = gs.py + dy;
     if (!canStand(gs.maze, tx, ty)) return false; // walked into a wall — no move, no sound
-    // backtracking = stepping onto a tile we've recently been on; suppresses the
-    // "new ground" charted flourish (no longer tied to breathing)
-    const backtrack = gs.trail.some(p => p.x === tx && p.y === ty);
+    // trail = recent tiles, kept for the fading walked-path render (see drawMinimap)
     gs.trail.push({ x: gs.px, y: gs.py });
     if (gs.trail.length > 60) gs.trail.shift();
     gs.px = tx; gs.py = ty; gs.steps++;
-    const fresh = !gs.tracked[ty * gs.maze.GW + tx]; // first time charting this tile
-    gs.tracked[ty * gs.maze.GW + tx] = 1;
+    gs.tracked[ty * gs.maze.GW + tx] = 1; // mark charted (drives the % CHARTED stat)
     if (setFace !== false) gs.faceTarget = Math.atan2(dy, dx);
     reveal(gs, now);
     // footstep: a wet splash in the storm, the dry step otherwise; scaled by tweak volume
     if (tw.soundFootsteps) ae?.playOneShot(tw.weather === 'Storm' ? 'waterstep' : 'footstep', { gain: tw.footstepVolume * 2 });
-    if (tw.soundCharted && fresh && !backtrack) ae?.playOneShot('charted', { gain: tw.chartedVolume * 2 }); // "new ground"
     // exertion from step CADENCE: a quick gap between steps = hurrying = harder breath.
     // gap <= ~260ms (held-move rate is 140ms) counts as fast; slow/first steps add little.
     const gap = lastStepRef.current ? now - lastStepRef.current : 9999;
@@ -139,15 +196,21 @@ export function useGame(audio?: AudioEngine) {
   // fires a random thunder clap a beat later (so the boom lags the flash, as in
   // life), with volume scaled by the bolt's brightness (mag).
   useEffect(() => {
+    const pending = new Set<ReturnType<typeof setTimeout>>();
     onLightning((mag) => {
       const ae = audioRef.current;
       const tw = twRef.current;
       if (!ae || !tw.soundThunder) return;
       const name = THUNDERS[Math.floor(Math.random() * THUNDERS.length)];
       const delay = 250 + (1 - mag) * 700; // closer (brighter) bolt = shorter delay
-      setTimeout(() => ae.playOneShot(name, { gain: tw.thunderVolume * (0.6 + mag * 0.4) }), delay);
+      const id = setTimeout(() => {
+        pending.delete(id);
+        ae.playOneShot(name, { gain: tw.thunderVolume * (0.6 + mag * 0.4) });
+      }, delay);
+      pending.add(id);
     });
-    return () => onLightning(null);
+    // stop new claps AND drop any already queued for after we leave the screen
+    return () => { onLightning(null); for (const id of pending) clearTimeout(id); };
   }, []);
 
   // main loop
@@ -158,30 +221,10 @@ export function useGame(audio?: AudioEngine) {
       const gs = gsRef.current;
       const tw = twRef.current;
       if (gs) {
-        // audio beds: each loop is on only when its tweak says so (rain also needs
-        // Storm weather, so it doesn't drone in clear skies — that was the always-on
-        // bug). ensureBed starts/stops idempotently and ramps to the live tweak gain.
+        // weather-driven beds + the exertion-tracking breath loop + master mute/volume,
+        // pulled into updateAudio so this loop body stays readable (see audio.md).
         const ae = audioRef.current;
-        if (ae) {
-          const ensureBed = (name: Parameters<typeof ae.startLoop>[0], on: boolean, gain: number) => {
-            if (on) { ae.startLoop(name, 1.5); ae.setLoopGain(name, gain, 0.4); }
-            else ae.stopLoop(name, 1.0);
-          };
-          ensureBed('rain', tw.soundRain && tw.weather === 'Storm', tw.rainVolume);
-          ensureBed('wind', tw.soundWind && tw.wind, tw.windVolume);
-          ensureBed('machine1', tw.soundFactory, tw.factoryVolume); // the factory drone
-          // breath: always on (if enabled). gain + rate track "exertion" (step cadence),
-          // scaled by breathAmt. Louder during a storm so it carries over the rain bed.
-          exertionRef.current = Math.max(0, exertionRef.current - 0.012); // recover when idle
-          const ex = exertionRef.current;
-          ensureBed('breath', tw.soundBreathing, 0); // ensure it's running/stopped
-          if (tw.soundBreathing) {
-            const stormLift = tw.weather === 'Storm' ? 0.22 : 0; // sit above the rain
-            ae.setLoopGain('breath', (0.18 + stormLift + 0.55 * ex) * tw.breathAmt, 0.25);
-            ae.setLoopRate('breath', 1 + 0.5 * ex, 0.3); // faster steps → faster breathing
-          }
-          ae.setMuted(tw.audioMuted); ae.setVolume(tw.audioVolume);
-        }
+        if (ae) updateAudio(ae, tw, exertionRef, now);
 
         // held-key movement
         let heldKey: string | null = null;
@@ -238,10 +281,14 @@ export function useGame(audio?: AudioEngine) {
           lastHud = now;
           let charted = 0;
           for (let i = 0; i < gs.tracked.length; i++) if (gs.tracked[i]) charted++;
+          // facing octant (E, SE, S, …) — same math the canvas compass used; now the
+          // React pill owns this readout so the on-canvas controls line can go away.
+          const ci = ((Math.round(gs.faceA / (Math.PI / 4)) % 8) + 8) % 8;
           setHud({
             steps: gs.steps,
             charted: Math.round(charted / gs.totalFloor * 100),
             reached: gs.exitReached,
+            facing: ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'][ci],
           });
         }
       }

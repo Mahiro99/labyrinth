@@ -16,6 +16,10 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       {t.weather === 'Storm' && <TweakSlider label="Rain intensity" value={t.rainAmt} min={0.05} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('rainAmt', v)} />}
       {t.weather === 'Storm' && <TweakSlider label="Storm clouds" value={t.stormClouds} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('stormClouds', v)} />}
       {t.weather === 'Storm' && <TweakToggle label="Lightning" value={t.lightning} onChange={(v) => setTweak('lightning', v)} />}
+      {/* one timer drives BOTH the visual flash and the thunder boom (see render3d /
+          useGame). Presented as seconds-between-strikes: smaller = a more frequent,
+          intense storm, and the thunder fires off the same event so it scales with it. */}
+      {t.weather === 'Storm' && t.lightning && <TweakSlider label="Strike interval" value={t.thunderGap} min={2} max={30} step={1} unit="s" onChange={(v) => setTweak('thunderGap', v)} />}
       <TweakToggle label="Sky (sun / stars)" value={t.sky} onChange={(v) => setTweak('sky', v)} />
       {t.sky && <>
         <TweakSlider label="Sun azimuth" value={t.sunAz} min={-180} max={180} step={5} onChange={(v) => setTweak('sunAz', v)} />
@@ -25,11 +29,15 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
         <TweakToggle label="Distant spires" value={t.landmark} onChange={(v) => setTweak('landmark', v)} />
         {t.landmark && <TweakSlider label="Spire count" value={t.spireCount} min={0} max={64} step={1} onChange={(v) => setTweak('spireCount', v)} />}
         {t.landmark && <TweakSlider label="Spire height" value={t.spireHeight} min={0.3} max={3} step={0.1} onChange={(v) => setTweak('spireHeight', v)} />}
-        <TweakToggle label="Drifting clouds" value={t.clouds} onChange={(v) => setTweak('clouds', v)} />
-        {t.clouds && t.weather !== 'Storm' && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudAmount', v)} />}
-        {t.clouds && <TweakSlider label="Cloud speed" value={t.cloudSpeed} min={0} max={4} step={0.1} onChange={(v) => setTweak('cloudSpeed', v)} />}
-        {t.clouds && <TweakSlider label="Cloud shade" value={t.cloudShade} min={0} max={1} step={0.05} onChange={(v) => setTweak('cloudShade', v)} />}
-        {t.clouds && <TweakColor label="Cloud color" value={t.cloudColor} options={['#bcc3c7', '#e8eaec', '#9aa6b0', '#c9b9a4', '#7a8694']} onChange={(v) => setTweak('cloudColor', v)} />}
+        {/* In Clear, the toggle turns clouds on/off; in Storm clouds are forced on so
+            the toggle is hidden. The adjustment sliders always show (whenever Sky is on)
+            so Clear and Storm have the same controls without hunting for a toggle. */}
+        {t.weather !== 'Storm' && <TweakToggle label="Drifting clouds" value={t.clouds} onChange={(v) => setTweak('clouds', v)} />}
+        {t.weather !== 'Storm' && <TweakSlider label="Cloud amount" value={t.cloudAmount} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudAmount', v)} />}
+        <TweakSlider label="Cloud speed" value={t.cloudSpeed} min={0} max={4} step={0.1} onChange={(v) => setTweak('cloudSpeed', v)} />
+        <TweakSlider label="Cloud depth" value={t.cloudDepth} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('cloudDepth', v)} />
+        <TweakSlider label="Cloud shade" value={t.cloudShade} min={0} max={1} step={0.05} onChange={(v) => setTweak('cloudShade', v)} />
+        <TweakColor label="Cloud color" value={t.cloudColor} options={['#bcc3c7', '#e8eaec', '#9aa6b0', '#c9b9a4', '#7a8694', '#4a525c', '#3a4250']} onChange={(v) => setTweak('cloudColor', v)} />
       </>}
       <TweakToggle label="Directional light" value={t.sunLight} onChange={(v) => setTweak('sunLight', v)} />
       {t.sunLight && <TweakSlider label="Light contrast" value={t.lightContrast} min={0} max={1} step={0.05} onChange={(v) => setTweak('lightContrast', v)} />}

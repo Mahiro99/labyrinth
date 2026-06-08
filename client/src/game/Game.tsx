@@ -24,7 +24,7 @@ export default function Game({ onExit }: { onExit: () => void }) {
       {/* touchAction:none so swipe-to-move isn't eaten by page scroll / pinch-zoom */}
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', touchAction: 'none' }} />
 
-      <Hud steps={hud.steps} charted={hud.charted} reached={hud.reached} hint={hint} touch={touch} onExit={onExit} />
+      <Hud steps={hud.steps} charted={hud.charted} reached={hud.reached} facing={hud.facing} hint={hint} touch={touch} onExit={onExit} />
 
       <Minimap miniRef={miniRef} show={t.showMinimap} />
 

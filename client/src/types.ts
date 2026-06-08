@@ -117,6 +117,7 @@ export interface Tweaks {
   cloudSpeed: number
   cloudShade: number
   cloudColor: string
+  cloudDepth: number    // atmospheric perspective 0..1 — far clouds smaller, higher, hazier
   groundLife: boolean
   groundLifeAmt: number
   driftLeaves: boolean
@@ -153,10 +154,12 @@ export interface Tweaks {
   audioVolume: number       // master 0..1
   soundFootsteps: boolean
   footstepVolume: number
-  soundCharted: boolean     // "new ground" flourish
-  chartedVolume: number
+  soundLeaves: boolean      // ambient dry-leaves rustle bed (swells in and out on its own)
+  leavesVolume: number      // leaves bed loudness ceiling (0..1)
+  leavesAmt: number         // swell depth — 0 = steady rustle, 1 = fades between gusts (0..1)
   soundBreathing: boolean
-  breathAmt: number         // how much exertion (step cadence) swells the breath (0..1)
+  breathVolume: number      // base loudness of the breath loop (0..1) — the floor it sits at
+  breathAmt: number         // how much exertion (step cadence) swells the breath above the floor (0..1)
   soundRain: boolean        // rain bed (only audible in Storm — follows weather)
   rainVolume: number
   soundWind: boolean        // wind bed (follows the visual Wind toggle)

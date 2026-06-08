@@ -11,10 +11,11 @@
 // audible at a time. Starts on the first user gesture (autoplay policy), fades out
 // when the landing unmounts / the player dives.
 
+import { clamp01 } from '../lib/num'
+
 const MUSIC_URLS = [
   '/sounds/music/atlasaudio-suspense-tension-511877.mp3',
   '/sounds/music/atlasaudio-tension-documentary-519912.mp3',
-  '/sounds/music/texanspaniard-running-355737.mp3',
   '/sounds/music/the_mountain-drama-mystery-375985.mp3',
 ]
 
@@ -27,9 +28,43 @@ export class LandingMusic {
   private current: HTMLAudioElement | null = null
   private next: HTMLAudioElement | null = null
   private lastIndex = -1
-  private fadeTimer: ReturnType<typeof setInterval> | null = null
   private started = false
   private stopped = false
+  // consecutive track-load failures; caps the skip-on-error retry so a run of dead
+  // URLs can't loop forever. Reset to 0 whenever a track actually plays.
+  private fails = 0
+
+  // Detach a finished/failed element WITHOUT the `el.src = ''` footgun: an empty src
+  // re-resolves against the document base URL, so the browser tries to load the SPA's
+  // index.html as media ("No decoders for text/html"). removeAttribute + load() is the
+  // spec-correct way to release the source cleanly. Also drops our end-of-track listeners.
+  private release(el: HTMLAudioElement) {
+    try { el.pause() } catch { /* noop */ }
+    el.removeAttribute('src')
+    try { el.load() } catch { /* noop */ }
+  }
+
+  // A track failed to load/decode (e.g. a deleted file the dev server answers with
+  // index.html, or a real 404 in prod). Skip it and try another, so one missing track
+  // never silences the bed — bounded by `fails` so an all-dead playlist gives up cleanly.
+  // Keeps `started` true throughout (we're still playing, just swapping the source) and
+  // replaces `current` in place rather than going through the crossfade path.
+  private onTrackError(el: HTMLAudioElement) {
+    if (import.meta.env.DEV) console.warn('[music] track failed, skipping:', el.currentSrc || el.src, 'err', el.error?.code)
+    if (this.stopped) return
+    if (el === this.next) this.next = null
+    if (el !== this.current) { this.release(el); return } // a stale/superseded element — just free it
+    this.release(el)
+    this.current = null
+    if (this.fails++ >= MUSIC_URLS.length) { this.started = false; return } // all tracks dead — give up, allow a future restart
+    const repl = this.makeEl(this.pickIndex()) // pickIndex avoids lastIndex → a different track
+    this.current = repl
+    repl.play().then(() => {
+      if (this.stopped || this.current !== repl) { this.release(repl); return }
+      this.fails = 0
+      this.fadeTo(repl, this.maxVol, CROSSFADE_SEC)
+    }).catch(() => { /* its own 'error' listener re-enters here, bounded by `fails` */ })
+  }
 
   // pick a random track index that isn't the one we just played
   private pickIndex(): number {
@@ -45,20 +80,49 @@ export class LandingMusic {
     el.preload = 'auto'
     el.loop = false // we sequence manually so we can crossfade between *different* tracks
     el.volume = 0
+    // a dead/undecodable track (deleted file → SPA index.html, or a real 404) skips to
+    // another instead of logging "playing" while silent
+    el.addEventListener('error', () => this.onTrackError(el), { once: true })
     return el
   }
 
-  // Begin playback. Idempotent — safe to call from the first-gesture handler even if
-  // it fires more than once. Returns a promise that rejects if the browser blocks
-  // playback (no gesture yet); callers can ignore.
-  async start(): Promise<void> {
-    if (this.started || this.stopped) return
+  // Begin playback. Idempotent — safe to call from the first-gesture handler even if it
+  // fires more than once. Returns true once the track is actually playing, false if the
+  // browser blocked it (no gesture yet) so the caller can keep its listeners attached
+  // and retry on the next gesture.
+  async start(): Promise<boolean> {
+    if (this.started) return true
+    // A prior stop() does NOT permanently kill this instance: being asked to start
+    // again means the music is wanted, so clear the flag and play. This is what lets
+    // the bed survive React StrictMode's mount→cleanup→mount probe in dev (cleanup
+    // calls stop() on the throwaway first mount, but useState keeps the SAME instance
+    // for the real one) and any real remount (landing → game → landing). Without this,
+    // start() stayed a permanent no-op and the music never played.
+    this.stopped = false
     this.started = true
     const el = this.makeEl(this.pickIndex())
     this.current = el
     this.bindEndOfTrack(el)
-    try { await el.play() } catch { this.started = false; return } // blocked → let next gesture retry
+    try { await el.play() } catch (e) {
+      // superseded while pending (its 'error' fired → onTrackError swapped in a
+      // replacement that owns `current`/`started`): bail without disturbing that state.
+      if (this.current !== el) return false
+      this.started = false // genuinely blocked (autoplay) → retry on the next gesture
+      if (import.meta.env.DEV) console.warn('[music] play() blocked, will retry on next gesture', e)
+      return false
+    }
+    // stop() may have landed while play() was pending (StrictMode cleanup, or a fast
+    // dive) and disposed `el` — don't fade in a dead element or claim success. Treat it
+    // as not-started so the next gesture rebuilds cleanly.
+    if (this.stopped) { this.started = false; return false }
+    // `el` was superseded while play() was pending — e.g. its 'error' fired and
+    // onTrackError swapped `current` to a replacement. Don't fade in or reset on the
+    // dead element; the replacement path owns `current`/`started` now.
+    if (this.current !== el) return true
+    this.fails = 0 // a real play() resolved — clear the skip-on-error budget
+    if (import.meta.env.DEV) console.log('[music] playing — maxVol', this.maxVol.toFixed(2))
     this.fadeTo(el, this.maxVol, CROSSFADE_SEC)
+    return true
   }
 
   // When a track nears its end, kick off the crossfade into the next one.
@@ -82,6 +146,9 @@ export class LandingMusic {
     this.next = nextEl
     this.bindEndOfTrack(nextEl)
     nextEl.play().then(() => {
+      // stop() may have landed while play() was pending — don't resurrect the track
+      if (this.stopped) { this.release(nextEl); this.next = null; return }
+      this.fails = 0 // the next track is genuinely playing — clear the skip budget
       this.fadeTo(nextEl, this.maxVol, CROSSFADE_SEC)
       if (this.current) this.fadeTo(this.current, 0, CROSSFADE_SEC, /*disposeAtEnd*/ true)
       this.current = nextEl
@@ -99,26 +166,34 @@ export class LandingMusic {
     if (tag._fade) clearInterval(tag._fade)
     tag._fade = setInterval(() => {
       step++
-      const v = from + (to - from) * (step / steps)
-      el.volume = Math.max(0, Math.min(1, v))
+      el.volume = clamp01(from + (to - from) * (step / steps))
       if (step >= steps) {
         clearInterval(tag._fade!); tag._fade = undefined
-        if (disposeAtEnd) { el.pause(); el.src = '' }
+        if (disposeAtEnd) this.release(el)
       }
     }, TICK_MS)
   }
 
   // Master volume / mute for the bed (0..1). Scales the active ramp ceiling.
   setVolume(v: number) {
-    this.maxVol = Math.max(0, Math.min(1, v))
+    this.maxVol = clamp01(v)
     if (this.current) this.fadeTo(this.current, this.maxVol, 0.3)
   }
 
-  // Fade everything out and tear down (landing unmount / dive). After stop(), start()
-  // is a no-op — this instance is done.
+  // Fade everything out and tear down (landing unmount / dive). NOT permanent — a later
+  // start() clears `stopped`/`started` and revives the instance (so it survives
+  // StrictMode's speculative cleanup and real remounts). After a genuine unmount no
+  // gesture reaches start() (listeners detached), so it stays stopped as intended.
+  //
+  // CRUCIAL: reset `started` too. StrictMode's dev probe is mount → start() (sets
+  // started=true, play() pending) → cleanup stop() (disposes that very element) →
+  // remount. If `started` stayed true, the next real gesture's start() would hit the
+  // `if (this.started) return true` fast-path and never create a fresh element — so the
+  // music was permanently silent on a direct game load (but fine via the landing, whose
+  // own instance absorbed the probe). Clearing it here lets the real start() rebuild.
   stop(fadeSec = 1.2) {
     this.stopped = true
-    if (this.fadeTimer) { clearInterval(this.fadeTimer); this.fadeTimer = null }
+    this.started = false
     for (const el of [this.current, this.next]) {
       if (el) this.fadeTo(el, 0, fadeSec, /*disposeAtEnd*/ true)
     }

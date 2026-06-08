@@ -14,7 +14,7 @@ let _splashesCache: { x: number; y: number; ph: number; rate: number }[] | null 
 let _groundLifeCache: { ux: number; uy: number; kind: string; sz: number; rot: number; blades: number; hue: number }[] | null = null
 let _bugsCache: { ux: number; uy: number; spd: number; sz: number; ph: number; ph2: number; kind: string }[] | null = null
 let _driftLeavesCache: { ux: number; uy: number; uz: number; fall: number; sway: number; sz: number; spin: number }[] | null = null
-let _cloudsCache: { az: number; el: number; sz: number; spd: number; puff: number }[] | null = null
+let _cloudsCache: { az: number; el: number; dist: number; sz: number; spd: number; puff: number }[] | null = null
 let _spiresCache: { az: number; dist: number; shape: string; w: number; h: number; lean: number; seed: number }[] | null = null
 
 // lazily-built 128px monochrome noise tile for film grain
@@ -99,11 +99,13 @@ export function driftLeaves() {
   for (let i = 0; i < 400; i++) a.push({ ux: Math.random(), uy: Math.random(), uz: Math.random(), fall: 0.5 + Math.random() * 0.8, sway: Math.random() * 7, sz: 0.7 + Math.random() * 1.1, spin: Math.random() * 7 });
   _driftLeavesCache = a; return a;
 }
-// seeded clouds — soft blobs drifting across the open-top sky strip
+// seeded clouds — soft blobs drifting across the open-top sky strip. `dist` (0 near
+// → 1 far) drives atmospheric perspective at draw time: far clouds sit higher, smaller
+// and hazier. Biased toward far so the sky reads deep, not a wall of near blobs.
 export function clouds() {
   if (_cloudsCache) return _cloudsCache;
   const a = [];
-  for (let i = 0; i < 84; i++) a.push({ az: Math.random() * 6.2832, el: Math.random(), sz: 0.7 + Math.random() * 1.1, spd: 0.2 + Math.random() * 0.5, puff: Math.random() * 7 });
+  for (let i = 0; i < 84; i++) a.push({ az: Math.random() * 6.2832, el: Math.random(), dist: Math.pow(Math.random(), 0.7), sz: 0.7 + Math.random() * 1.1, spd: 0.2 + Math.random() * 0.5, puff: Math.random() * 7 });
   _cloudsCache = a; return a;
 }
 // seeded distant spires — each at its own bearing + distance (depth), with a shape.

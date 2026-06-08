@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react'
 import { LandingMusic } from './landingMusic'
+import { clamp01 } from '../lib/num'
 
 const VOL_KEY = 'dm.music.volume'
 const OFF_KEY = 'dm.music.off'
@@ -43,28 +44,42 @@ export function useLandingMusic(opts?: MusicOpts) {
     }
   }, [music, effVol, effOff, controlled, volume, off])
 
-  // start on the first user gesture; retry-friendly (start() is idempotent and
-  // self-resets if the browser blocks the play() call).
+  // Start on the first user gesture. CRITICAL: only ACTIVATION gestures (pointerdown /
+  // keydown / touchstart / click) — NOT pointermove. Browsers gate audio behind a real
+  // user activation; mouse movement does NOT grant it. The old list included pointermove,
+  // so on a fresh page load (direct/refresh into the game, no prior interaction) the first
+  // mouse move fired start() before any activation existed → play() resolved into a
+  // silent/suppressed state, latched started=true, detached the listeners, and never
+  // retried = permanent silence. Coming FROM the landing it worked only because the page
+  // already had "sticky activation" from earlier clicks. Dropping pointermove means the
+  // first start() is always driven by a genuine activation (a click or the arrow keys you
+  // press to play), so play() is allowed.
   useEffect(() => {
-    const begin = () => { void music.start() }
-    const o = { passive: true } as const
-    window.addEventListener('pointerdown', begin, o)
-    window.addEventListener('keydown', begin, o)
-    window.addEventListener('touchstart', begin, o)
-    window.addEventListener('pointermove', begin, o)
-    return () => {
-      window.removeEventListener('pointerdown', begin)
-      window.removeEventListener('keydown', begin)
-      window.removeEventListener('touchstart', begin)
-      window.removeEventListener('pointermove', begin)
-      music.stop() // screen unmounting → fade the bed out
+    // Every ACTIVATION gesture the player might make to start moving — a click, a key
+    // (arrow / WASD → keydown), or a touch/swipe (touchstart/touchend) — so the music
+    // kicks in the moment they interact, however they move. pointerup/keyup/touchend are
+    // here because some browsers grant the audio activation on the release, not the press.
+    // STILL no pointermove: mouse movement is not a user activation, so it can't start
+    // audio and listening for it just re-introduces the silent-on-refresh bug.
+    const events = ['pointerdown', 'pointerup', 'keydown', 'keyup', 'touchstart', 'touchend', 'click']
+    const begin = (e?: Event) => {
+      if (import.meta.env.DEV) {
+        const ua = (navigator as Navigator & { userActivation?: { isActive: boolean; hasBeenActive: boolean } }).userActivation
+        console.log('[music] gesture', e?.type, '→ start() (off:', effOff, 'vol:', effVol, '| activation active:', ua?.isActive, 'hasBeenActive:', ua?.hasBeenActive, ')')
+      }
+      void music.start().then(ok => { if (ok) removeAll() })
     }
+    const removeAll = () => { for (const e of events) window.removeEventListener(e, begin) }
+    const o = { passive: true } as const
+    for (const e of events) window.addEventListener(e, begin, o)
+    if (import.meta.env.DEV) console.log('[music] listeners attached, waiting for ACTIVATION gesture (click/key, not mousemove)')
+    return () => { removeAll(); music.stop() } // screen unmounting → fade the bed out
   }, [music])
 
   return {
     volume: effVol,
     off: effOff,
-    setVolume: (v: number) => setVolumeState(Math.max(0, Math.min(1, v))),
+    setVolume: (v: number) => setVolumeState(clamp01(v)),
     toggleOff: () => setOffState(o => !o),
   }
 }

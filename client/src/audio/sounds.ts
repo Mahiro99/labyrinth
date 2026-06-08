@@ -30,15 +30,18 @@ export const SOUNDS = {
     url: '/sounds/player/data_pion-st1-footstep-sfx-323053.mp3',
     role: 'oneshot', volume: 0.5, pitchVar: 0.12, preload: true,
   },
-  // wet footstep — splashy variant played instead of `footstep` in Storm weather
+  // wet footstep — splashy variant played instead of `footstep` in Storm weather.
+  // Not preloaded: it's only reachable in Storm, so it lazy-loads on the first wet
+  // step (one footstep may be silent while it decodes — inaudible in practice).
   waterstep: {
     url: '/sounds/player/freesound_community-water-step-90358.mp3',
-    role: 'oneshot', volume: 0.5, pitchVar: 0.12, preload: true,
+    role: 'oneshot', volume: 0.5, pitchVar: 0.12,
   },
-  // a softer "new ground charted" flourish (reuses the leaves rustle)
-  charted: {
+  // ambient dry-leaves rustle — a looping bed that swells in and out on its own (its
+  // gain is modulated by a slow LFO in useGame, scaled by the leaves intensity tweak).
+  leaves: {
     url: '/sounds/nature/dragon-studio-dry-leaves-rustling-482874.mp3',
-    role: 'oneshot', volume: 0.25, pitchVar: 0.08, preload: true,
+    role: 'bed', volume: 0.5, preload: true,
   },
 
   // --- stateful loop: gain + playback rate track an "exertion" signal (step
@@ -49,15 +52,20 @@ export const SOUNDS = {
   },
 
   // --- ambient beds: long loops, volume-automated, crossfaded ---
+  // rain bed — only audible in Storm (~1 MB), so not preloaded: it lazy-loads when
+  // weather first turns Storm; startLoop retries each frame and the 1.5s fade-in masks
+  // the decode. Wind below IS preloaded (it's on by default, used from game entry).
   rain: {
     url: '/sounds/weather/rain/freesound_community-rain-on-concrete-sound-30331.mp3',
-    role: 'bed', volume: 0.35, preload: true,
+    role: 'bed', volume: 0.35,
   },
   wind: {
     url: '/sounds/weather/wind/soundreality-wind-blowing-457954.mp3',
     role: 'bed', volume: 0.3, preload: true,
   },
-  // deeper/tenser atmosphere (optional layer) — the factory drones
+  // deeper/tenser atmosphere (optional layer) — the factory drones. All four are layered
+  // together when the factory bed is on (useGame's MACHINE_BEDS), phasing into an evolving
+  // industrial wall. Opt-in + large, so none preload — they lazy-load on first factory use.
   machine1: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-014-314825.mp3', role: 'bed', volume: 0.25 },
   machine2: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-022-314833.mp3', role: 'bed', volume: 0.25 },
   machine3: { url: '/sounds/machines/audiopapkin-futuristic-factory-machine-ps-023-314834.mp3', role: 'bed', volume: 0.25 },

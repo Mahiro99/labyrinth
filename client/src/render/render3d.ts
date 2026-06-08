@@ -17,11 +17,6 @@ import { getWorld } from '../worlds'
 import { bugs, clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
 import { QUANTITY, qty } from './quantity'
 
-// coarse pointer => touch device, so the in-canvas control hint should say "swipe"
-// rather than naming arrow/WASD keys the player doesn't have. Read once at module
-// load (pointer type doesn't change at runtime).
-const COARSE_POINTER = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches
-
 // cheap deterministic hash -> 0..1 (for vine placement)
 function _h2(a: number, b: number): number { let t = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; t = Math.imul(t ^ (t >>> 13), 1274126177); t ^= t >>> 16; return ((t >>> 0) % 100003) / 100003; }
 // a small pointed leaf (teardrop), tilted — for the Ivy vine style
@@ -295,7 +290,7 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
   drawBloom(ctx, rc);
   drawFilmGrade(ctx, rc);
   drawFilmGrain(ctx, rc);
-  drawCompass(ctx, rc);
+  // (facing + controls now live in the React HUD pill, not on the canvas)
 }
 
 // ceiling (or open sky) + floor (or water): the gradient backdrop the walls paint over.
@@ -517,43 +512,57 @@ function drawSky(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
 
   // ---- DRIFTING CLOUDS: soft blobs easing across the open-top strip. During a
-  // STORM the layer is forced ON and turned turbulent — dense, dark, fast and low-
-  // hanging — so the sky churns overhead instead of sitting empty, and the lightning
-  // flash backlights the blobs. Outside storms it honours the cloud tweaks as before.
+  // STORM the layer is forced ON and hangs lower/wider, and the lightning flash
+  // backlights the blobs — but amount/speed/shade/colour are fully tweakable just
+  // like Clear (storm amount comes from its own `stormClouds` slider). Storm-y
+  // defaults live in defaults.ts, not as hardcoded overrides here.
   if (tw.clouds || storming) {
     const cl = clouds();
-    // storm cloud cover comes from its OWN slider (tw.stormClouds), independent of the
-    // normal "Cloud amount" — so the storm sky fills regardless of the clear-day setting.
+    // amount: Storm uses its own slider; Clear uses the normal "Cloud amount".
     const stormCl = tw.stormClouds == null ? 0.9 : tw.stormClouds;
     const cAmt = storming ? stormCl : (tw.cloudAmount == null ? 0.28 : tw.cloudAmount);
-    const cSpd = (tw.cloudSpeed == null ? 1 : tw.cloudSpeed) * (storming ? 2.6 : 1);   // wind-driven
-    // denser storm cover also reads as heavier/darker cloud
-    const cShade = storming ? (0.55 + 0.4 * stormCl)
-      : (tw.cloudShade == null ? 0 : tw.cloudShade);   // 0 light → 1 heavy/dark
+    const cSpd = tw.cloudSpeed == null ? 1 : tw.cloudSpeed;          // slider-driven in both modes
+    const cShade = tw.cloudShade == null ? 0 : tw.cloudShade;        // slider-driven in both modes
     const nDraw = Math.min(cl.length, qty(cAmt, QUANTITY.clouds));
-    // base colour from the tweak (hex), darkened by shade; night is always darker.
-    // storm clouds skip the user hex and use a cold bruised grey.
-    const baseRGB = storming ? (daylight ? [70, 78, 88] : [30, 36, 46])
-      : ((tw.cloudColor ? hexToRgb(tw.cloudColor) : null) || (daylight ? [188, 195, 199] : [50, 58, 72]));
+    // base colour from the cloud-colour slider (hex), darkened by shade; night darker.
+    const baseRGB = (tw.cloudColor ? hexToRgb(tw.cloudColor) : null) || (daylight ? [188, 195, 199] : [50, 58, 72]);
     const col = daylight ? mix(baseRGB, [30, 34, 40], cShade * 0.7) : mix(baseRGB, [10, 12, 16], 0.4 + cShade * 0.4);
     // lightning backlight: brighten the blobs toward a cool white while a strike decays
     const lit = storming && flash > 0.02 ? Math.min(1, flash) : 0;
     const cloudCol = lit ? mix(col, [180, 196, 224], 0.6 * lit) : col;
-    for (let i = 0; i < nDraw; i++) {
+    // ATMOSPHERIC PERSPECTIVE: depthAmt (slider) controls how strongly a cloud's
+    // distance (c2.dist, 0 near→1 far) lifts it toward the horizon, shrinks it, and
+    // fades it hazier. 0 = flat uniform band; 1 = a deep, layered sky.
+    const depthAmt = tw.cloudDepth == null ? 0.6 : tw.cloudDepth;
+    // base vertical band: clouds sit in the upper sky strip (raised off the wall-top).
+    // `elTop` is where near clouds anchor; far clouds get pulled up toward `elHi`.
+    const elR = storming ? 0.42 : 0.28;       // how tall a band near clouds spread over
+    const elTop = -M * 0.1 - H * 0.04;        // a touch higher than before (lift off wall)
+    // draw far→near so nearer (bigger, solid) clouds overlap the hazy far ones
+    const order = Array.from({ length: nDraw }, (_, i) => i).sort((p, q) => cl[q].dist - cl[p].dist);
+    for (const i of order) {
       const c2 = cl[i];
-      const az = (c2.az + now * 0.00006 * c2.spd * cSpd) % 6.2832;
+      const far = c2.dist * depthAmt;          // effective farness 0..1
+      // parallax: distant clouds drift slower (down to ~40% speed at full depth)
+      const az = (c2.az + now * 0.00006 * c2.spd * cSpd * (1 - 0.6 * far)) % 6.2832;
       const b = bearing(az);
       if (Math.abs(b) > 0.95) continue;
-      // storm clouds hang lower and spread wider across the open strip
-      const elR = storming ? 0.5 : 0.3;
-      const cx = skyX(b), cy = -M * 0.1 + c2.el * (H * elR);   // sit in the open sky gap
-      const cw = H * (storming ? 0.26 : 0.2) * c2.sz, ch = H * (storming ? 0.09 : 0.06) * c2.sz;
-      const a = (daylight ? 0.5 : 0.3) * (storming ? 1 : (1 - cloud * 0.4)) * (1 + cShade * 0.5);
+      const cx = skyX(b);
+      // vertical: near clouds spread across the band; far clouds compress up toward top
+      const cy = elTop + c2.el * (H * elR) * (1 - 0.78 * far);
+      // size: far clouds shrink (down to ~30% at full depth)
+      const szF = 1 - 0.7 * far;
+      const cw = H * (storming ? 0.26 : 0.2) * c2.sz * szF, ch = H * (storming ? 0.09 : 0.06) * c2.sz * szF;
+      // alpha: far clouds fade hazier; near ones stay solid
+      const haze = 1 - 0.55 * far;
+      const a = (daylight ? 0.5 : 0.3) * (storming ? 1 : (1 - cloud * 0.4)) * (1 + cShade * 0.5) * haze;
+      // far clouds also wash slightly toward the sky/haze colour (aerial perspective)
+      const blob = far > 0.02 ? mix(cloudCol, daylight ? [196, 200, 198] : [70, 80, 96], 0.45 * far) : cloudCol;
       for (let p = 0; p < 5; p++) {
         const px = cx + Math.sin(c2.puff + p * 1.7) * cw * 0.55, py = cy + Math.cos(c2.puff + p) * ch * 0.5;
         const rad = cw * (0.5 + 0.18 * Math.sin(c2.puff + p * 2.3));
         const g = ctx.createRadialGradient(px, py, 0, px, py, rad);
-        g.addColorStop(0, rgba(cloudCol, a)); g.addColorStop(0.7, rgba(cloudCol, a * 0.5)); g.addColorStop(1, rgba(cloudCol, 0));
+        g.addColorStop(0, rgba(blob, a)); g.addColorStop(0.7, rgba(blob, a * 0.5)); g.addColorStop(1, rgba(blob, 0));
         ctx.fillStyle = g; ctx.fillRect(px - rad, py - rad, rad * 2, rad * 2);
       }
     }
@@ -1191,17 +1200,3 @@ function drawFilmGrain(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
 }
 
-// facing readout — a contrasting halo keeps it legible over bright or dark floor
-function drawCompass(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { gs, daylight, W, H } = rc;
-  const compass = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
-  const ci = ((Math.round(gs.faceA / (Math.PI / 4)) % 8) + 8) % 8;
-  ctx.save();
-  ctx.font = '600 12px ' + theme.font.mono; ctx.textAlign = 'center';
-  ctx.shadowColor = daylight ? theme.compass.dayHalo : theme.compass.nightHalo;
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = daylight ? theme.compass.day : theme.compass.night;
-  const controls = COARSE_POINTER ? 'SWIPE TO MOVE · ← → SWIPE TO TURN' : '← → TURN  ·  ↑ ↓ MOVE';
-  ctx.fillText('▲ FACING ' + compass[ci] + '  ·  ' + controls, W / 2, H - 22);
-  ctx.restore();
-}

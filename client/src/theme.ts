@@ -1,5 +1,5 @@
 // theme.ts — the single source of truth for the GAME UI skin: fonts, HUD text,
-// the minimap, the on-canvas compass, accent colours, and the floating Tweaks
+// the minimap, accent colours, and the floating Tweaks
 // panel's palette. Procedural/world colours (fog, walls, foliage, sky) still live
 // in palettes.ts and the renderer — those are *content*. This file is only the
 // chrome you read over the top of the game, so "change how the interface looks"
@@ -19,17 +19,25 @@ export const theme = {
   // or dark (night). Every readout pairs a high-contrast colour with a shadow so
   // it stays legible on either. `scrim` is the gradient behind the top bar.
   hud: {
+    // Light text everywhere — paired with `shadow` (legible at night) + `scrim`
+    // (dark backing on a bright daytime sky). Brighter than before so the readouts
+    // don't wash out against the pale sky in the screenshot.
     title: '#ffffff',
-    primary: '#eef3fb',
-    secondary: '#cdd8e8',
-    dim: '#a6b3c6',
-    faint: '#8a98ad',
-    shadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.6)',
-    scrim: 'linear-gradient(180deg, rgba(0,0,0,0.72), rgba(0,0,0,0.32) 46%, rgba(0,0,0,0))',
-    // for the bottom movement hint pill
-    pillBg: 'rgba(10,12,16,0.62)',
-    pillBorder: 'rgba(255,255,255,0.16)',
-    pillText: '#d6deea',
+    primary: '#f3f7fd',
+    secondary: '#dfe7f3',  // was #cdd8e8 — lifted for contrast on bright sky
+    dim: '#b8c4d6',        // was #a6b3c6
+    faint: '#94a2b7',
+    // Layered shadow: a tight near-black core kills bright-day glare around the
+    // glyphs, a wider soft halo keeps it readable when the night view goes dark.
+    shadow: '0 1px 2px rgba(0,0,0,0.95), 0 1px 10px rgba(0,0,0,0.7), 0 0 22px rgba(0,0,0,0.45)',
+    // Stronger, slightly taller top scrim so the bar always has a dark backing —
+    // critical on the bright daytime view where light text alone disappears.
+    scrim: 'linear-gradient(180deg, rgba(6,9,14,0.82) 0%, rgba(6,9,14,0.45) 52%, rgba(6,9,14,0) 100%)',
+    // the bottom movement-hint pill: a glassy dark capsule that reads on day or night
+    pillBg: 'rgba(8,11,16,0.72)',
+    pillBorder: 'rgba(255,255,255,0.18)',
+    pillText: '#e7edf6',
+    pillAccent: '#ffd9a3',  // the live FACING value — warm, so it pops from the white controls
   },
 
   accent: {
@@ -44,19 +52,11 @@ export const theme = {
 
   minimap: {
     bg: '#05070a',
-    label: '#b3c0d2',
+    label: '#cdd8e8',  // lifted for legibility over a bright daytime sky
     walked: 'rgba(160,190,228,0.62)',
     wall: 'rgba(122,142,172,0.2)',
     border: 'rgba(255,255,255,0.12)',
     labelShadow: '0 1px 2px rgba(0,0,0,0.85)',
-  },
-
-  // on-canvas facing readout (drawn by render3d.drawCompass)
-  compass: {
-    day: 'rgba(20,24,20,0.82)',
-    night: 'rgba(210,226,244,0.8)',
-    dayHalo: 'rgba(245,248,245,0.7)',
-    nightHalo: 'rgba(0,0,0,0.55)',
   },
 
   // The floating Tweaks panel (a light "paper glass" surface). ink/paper are bare
