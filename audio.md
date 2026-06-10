@@ -1,6 +1,6 @@
 # Daily Maze — Audio Design
 
-**Version:** v5 · **Last updated:** 2026-06-07
+**Version:** v6 · **Last updated:** 2026-06-09
 
 How sound ties into the game. This doc covers the *design* — what plays, when, and why — and the *architecture* that makes it fit Daily Maze's runtime (a mutable-ref rAF game loop, no server yet). The asset library lives in `client/public/sounds/`.
 
@@ -18,9 +18,10 @@ The earlier idea of *synchronized-window* and *threat-tick* sounds riding a WebS
 
 Sound isn't one system — it's three, each with a different trigger source and lifecycle:
 
-1. **One-shot SFX** — fire once on a discrete event, then forget. Footstep, charting flourish, trap-door drop, thunder, exit sting. Triggered imperatively from `step()` / the render flash. *Many can overlap* (rapid footsteps), so each play grabs a fresh buffer source. (A wall-bump sound was tried and removed — walking into a wall now makes no sound.)
-2. **Ambient beds** — long loops that fade in/out and crossfade, setting the mood of being in the dark. Rain + wind, or the factory-machine drones for deeper/tenser stretches. Driven by *state* (am I in the maze? how lost am I?), not events. *One instance per bed*, volume-automated.
-3. **Stateful / continuous** — the breathing loop, whose *intensity* tracks a game variable (calm when charting, heavier when backtracking / lost / near a trap). One instance, gain modulated continuously from the loop.
+1. **One-shot SFX** — fire once on a discrete event, then forget. Footstep / wet waterstep, thunder, exit sting, the monster growl, and each distant factory machine. Triggered imperatively from `step()` / the loop / the render flash. *Many can overlap* (rapid footsteps), so each play grabs a fresh buffer source. (A wall-bump sound was tried and removed — walking into a wall now makes no sound.) The **exit sting** is a one-time edge event, so it plays via `playOneShot(..., { load: true })` — load-then-play — instead of the usual drop-on-miss, or it would be silently dropped in Clear weather where its thunder clip is never preloaded.
+2. **Ambient beds** — long loops that fade in/out, setting the mood of being in the dark. Rain + wind (weather-driven), plus the **leaves** rustle bed (an LFO-swelled loop on its own). Driven by *state* (which weather? wind on?), not events. *One instance per bed*, volume-automated. (The factory machines are **not** a bed — see below.)
+3. **Stateful / continuous** — the breathing loop, whose *intensity* tracks a game variable (currently step **cadence** / exertion — louder + faster as you hurry). One instance, gain + playback-rate modulated continuously from the loop.
+4. **Sequenced one-shots on the "distant" bus** — the four factory machines play **one at a time** with random gaps (a scheduler in `useGame`), routed through a low-pass + reverb **distant** send so they read as machinery off in the dark, not a wall of drone. The **growl** is a one-shot too, but it bypasses the duck bus (so it isn't ducked by its own duck request) and *ducks every other sound* while it sounds.
 
 ## The sound → event map
 
@@ -28,30 +29,31 @@ Assets are grouped by theme in `client/public/sounds/` (see that folder). Mappin
 
 | Asset group | Role | Game trigger | Hook site |
 |---|---|---|---|
-| `player/footstep` | one-shot | every successful tile move (dry) | `step()` returns true ([useGame.ts](client/src/game/useGame.ts)) |
+| `player/footstep` | one-shot | every successful tile move (dry, Clear weather) | `step()` returns true ([useGame.ts](client/src/game/useGame.ts)) |
 | `player/waterstep` | one-shot | every move **in Storm weather** (wet splash, replaces footstep) | `step()`, gated on `t.weather === 'Storm'` |
-| `player/breathing` | stateful loop | always on under gameplay; gain swells when lost/backtracking | game-loop, modulated per frame |
-| `weather/thunder/*` (4) | one-shot | the lightning flash; also the **trap-door** drop | lightning in [render3d.ts](client/src/render/render3d.ts) (the "thunder off for now" TODO); trap-door branch |
-| `weather/rain` | ambient bed | base atmosphere of the dark maze | mounts with gameplay, fades on entry/exit |
-| `weather/wind` | ambient bed | base atmosphere, layered with rain | same |
-| `machines/*` (4) | ambient bed | alt/tenser atmosphere for deeper stretches (optional, later) | state-driven crossfade |
-| `nature/leaves` | one-shot | a softer step variant, or a "charting new ground" flourish | `reveal()` when new tiles get marked |
+| `player/breathing` | stateful loop | always on under gameplay; gain + rate swell with step cadence (exertion) | game-loop, modulated per frame |
+| `creatures/growl` | one-shot (ducks the mix) | standing still longer than `growlIdleSec` | `updateAudio()` idle check ([useGame.ts](client/src/game/useGame.ts)) |
+| `weather/thunder/*` (4) | one-shot | each lightning strike picks one at random; **`thunder4` doubles as the exit sting** | `onLightning` seam ([render3d.ts](client/src/render/render3d.ts)) → thunder; exit edge in `step()` |
+| `weather/rain` | ambient bed | base atmosphere — **only audible in Storm** | `ensureBed`, gated on `soundRain && weather==='Storm'` |
+| `weather/wind` | ambient bed | base atmosphere, layered with rain | `ensureBed`, follows the visual Wind toggle |
+| `machines/*` (4) | **sequenced one-shots** on the distant bus | one machine at a time, random gaps, opt-in (default off) | factory scheduler in `updateAudio()` |
+| `nature/leaves` | ambient bed (LFO-swelled) | a rustle that breathes in and out on its own | `startLoop('leaves')` + per-frame `setLoopGain` |
 
 ### Discrete events that want a sound
 
 Derived from the runtime + the design docs, in rough priority:
 
-- **Footstep** — `step()` succeeds. The bread-and-butter sound; pitch/vary slightly so repeats don't machine-gun.
-- **Turn** — `applyKey()` 90° rotate ([useGame.ts:61](client/src/game/useGame.ts#L61)). A soft cloth/swish, distinct from a step.
-- **Trap door** — stepping onto a stacked-MUTE branch flings you across the maze ([maze-rules.md](maze-rules.md) → Trap doors). *The* dramatic moment: a thunder hit + a whoosh as you're thrown. (Engine support for trap doors isn't built yet — this is the reserved trigger for when it is.)
-- **Exit reached** — `gs.exitReached` goes false→true ([useGame.ts:54](client/src/game/useGame.ts#L54)). A victory sting. **Needs edge-detect** — it's set every frame you stand on the exit.
-- **Lightning / thunder** — the render already flashes the screen ([render3d.ts](client/src/render/render3d.ts)); thunder lands a beat after the flash, as the author's TODO intends.
-- **New ground charted** — `reveal()` marks new `seen` tiles. A subtle discovery tick (leaves, or a soft chime). Throttle so a wide light-pool doesn't spam it.
+- **Footstep** — `step()` succeeds (dry in Clear, wet `waterstep` in Storm). The bread-and-butter sound; pitch varies slightly so repeats don't machine-gun.
+- **Exit reached** — `gs.exitReached` goes false→true. A victory sting (the `thunder4` clip). **Edge-detected** — `exitReached` is set every frame you stand on the exit, so the sting fires off the false→true transition only. Because it's a one-time event whose clip isn't preloaded in Clear weather, it uses the **load-then-play** path (`{ load: true }`) so the decode can't silently swallow it.
+- **Lightning / thunder** — the renderer's storm state machine flashes the screen and fires the `onLightning` seam ([render3d.ts](client/src/render/render3d.ts)); `useGame` subscribes and plays a random thunder clap a beat after the flash, scaled by the strike's brightness.
+- **Growl** — standing still past `growlIdleSec` triggers a loud monster growl that ducks the rest of the mix; re-arms each threshold so loitering growls again.
+- **Trap door** *(deferred)* — stepping onto a stacked-MUTE branch would fling you across the maze ([maze-rules.md](maze-rules.md) → Trap doors): a thunder hit + a whoosh. Engine support for trap doors isn't built yet — reserved trigger.
+- **Turn swish / charting flourish** *(not implemented)* — a soft swish on a 90° rotate and a discovery tick on `reveal()` were specced but never built (no asset, no manifest entry, no hook). Left here as candidates, not shipped behavior.
 
 ### Continuous / state-driven
 
-- **Ambient bed** (rain + wind): fades in when gameplay mounts, ducks out on the exit sting and on leaving the game screen.
-- **Breathing**: always on under gameplay; its gain rises with a "stress" signal — e.g. consecutive backtracks (a step onto a `trail` tile), time since last *new* tile charted, or proximity to a known trap once those exist. Calm exploration ≈ near-silent; thrashing in a dead-end ≈ audible.
+- **Ambient beds** (rain + wind + leaves): rain/wind follow weather + the Wind toggle; leaves swells on its own LFO. They fade out on leaving the game screen.
+- **Breathing**: always on under gameplay; its gain **and playback rate** rise with an **exertion** signal driven by step *cadence* — hurrying (quick successive steps) breathes harder and faster, idling settles it. (The original intent was a *lost/backtracking* stress signal; the shipped signal is cadence-based exertion instead. Storm adds a small lift so the breath carries over the rain.)
 
 ## Tweaks & weather coupling
 
@@ -61,14 +63,15 @@ Audio is tunable live through a **separate dev-only panel** — `AudioTweaks` ([
 
 - **rain** plays only when `soundRain && weather === 'Storm'` — fixing the original bug where rain droned in clear skies.
 - **wind** follows the visual `wind` toggle.
-- **factory** (`machines/*` drone) is its own opt-in bed (default off).
-- **breath** is always on (if enabled); its gain = `(0.12 + stress) * breathAmt`.
+- **leaves** is its own always-available rustle bed (an LFO swells its gain between a quiet floor and `leavesVolume`, depth set by `leavesAmt`).
+- **factory** (`machines/*`) is an opt-in *sequencer* (default off), not a bed — it fires one machine one-shot at a time on the distant bus, not a held loop.
+- **breath** is always on (if enabled); its gain ≈ `(0.5 + stormLift + exertion) * breathAmt * breathVolume`, and its playback rate rises with exertion too. (`stormLift` lifts it slightly in Storm; `exertion` tracks step cadence.)
 
 **Thunder spacing is one tweak for both flash and boom.** The interval lives in the renderer's lightning state machine ([render3d.ts](client/src/render/render3d.ts)); it now reads `thunderGap` seconds (± 40% jitter) instead of the old hardcoded 2.6–7.8 s. Because thunder fires off the *same* strike event (via the `onLightning` seam), widening the gap spaces the audio and the animation together — they can't drift apart.
 
 ## Background music (a separate system)
 
-There's a **background score** — four long cinematic tracks in `sounds/music/` (suspense / tension / drama / mystery, 1.5–4 min each) — playing as a **sequential shuffle**: pick a random track, play it fully, crossfade (~4 s) into another *different* random track, forever, one at a time. It starts on the player's **first gesture** (move/click/key/touch — autoplay policy) and **fades out on unmount**.
+There's a **background score** — three long cinematic tracks in `sounds/music/` (suspense / tension / drama-mystery, ~1.7–2.1 min each) — playing as a **sequential shuffle**: pick a random track, play it fully, crossfade (~4 s) into another *different* random track, forever, one at a time. It starts on the player's **first gesture** (move/click/key/touch — autoplay policy) and **fades out on unmount**. A failed/missing track is skipped to another so one dead file never silences the bed.
 
 The **same bed plays on both screens**, scoped to each: on the **landing** at its normal ceiling (~0.45, with a ♪ nav toggle + persisted volume), and **in-game** much quieter (`musicVolume` tweak, default ~0.18 — background, not the focus). They're two independent instances (the landing's fades out on the dive; the game's starts fresh on the next gesture), so the in-game track is independently random, not a continuation.
 
@@ -82,10 +85,10 @@ This is deliberately **not** the in-game `AudioEngine`. That engine decodes whol
 
 A small, framework-agnostic **audio engine** (plain TS, Web Audio under the hood) plus a thin React seam to own its lifecycle.
 
-- **`client/src/audio/AudioEngine.ts`** — a singleton-ish class wrapping one `AudioContext`. Responsibilities: load + decode each asset to an `AudioBuffer` once (cached); `playOneShot(name, {volume, rate})` (fresh `BufferSourceNode` per call, so overlaps are fine); `startBed(name)` / `setBedGain` / `crossfadeBed` for looping beds via a per-bed `GainNode`; `startBreath()` + `setBreathGain` for the modulated loop; a master `GainNode` for global volume/mute; and `unlock()` to `resume()` the context on first gesture. No React inside it — it's testable and reusable.
-- **`client/src/audio/sounds.ts`** — the manifest: a typed map from logical name (`'footstep'`, `'bump'`, `'thunder'`, `'rain'`, `'wind'`, `'breath'`, …) to its public URL under `/sounds/...`, plus per-sound defaults (base volume, whether it's a one-shot/bed/loop, pitch-variance). One place to add a sound.
-- **`client/src/audio/useAudio.ts`** — a tiny hook that constructs one engine per Game mount, calls `unlock()` on the first input gesture, and `dispose()`s it (closing the `AudioContext`) on unmount so contexts aren't orphaned across landing↔game navigation (browsers cap concurrent contexts). It exposes the engine so the game loop can fire one-shots. Mute/volume are **not** owned here — they live in the Tweaks state and the loop pushes them to the engine each frame.
-- **Wiring into the loop** — `useGame` receives the engine (param or context) and calls it at the hook sites: `engine.playOneShot('footstep')` after a successful `step()`, `'bump'` on the early return, `'turn'` on rotate, the breathing-gain update once per frame in the loop, the exit sting behind a false→true edge check. The render-side thunder fires from where the lightning flash is decided.
+- **`client/src/audio/AudioEngine.ts`** — a singleton-ish class wrapping one `AudioContext`. Responsibilities: load + decode each asset to an `AudioBuffer` once (cached, in-flight-deduped); `playOneShot(name, {gain, rate, out, duck, load})` (fresh `BufferSourceNode` per call, so overlaps are fine; `out` routes to the duck / distant / master bus; `load:true` is the load-then-play path for one-time events); `startLoop` / `setLoopGain` / `setLoopRate` / `stopLoop` / `stopAll` for the looping beds + breath via per-loop `GainNode`s (both gain and rate are **change-gated** so a constant-value per-frame caller doesn't reschedule a ramp 60×/sec); a **duck bus** (`duck()`) that briefly drops the whole mix under the growl; a **distant send** (`setDistance` / `stopDistant`) — low-pass + reverb so the factory machines read as far-off; a master `GainNode` for global volume/mute; and `unlock()` to `resume()` the context on first gesture. No React inside it — testable and reusable.
+- **`client/src/audio/sounds.ts`** — the manifest: a typed map from logical name (`'footstep'`, `'waterstep'`, `'breath'`, `'leaves'`, `'growl'`, `'rain'`, `'wind'`, `'machine1'`…`'machine4'`, `'thunder1'`…`'thunder4'`) to its public URL under `/sounds/...`, plus per-sound defaults (base volume, role one-shot/bed/loop, pitch-variance, `preload`). One place to add a sound.
+- **`client/src/audio/useAudio.ts`** — a tiny hook that constructs one engine per Game mount, attempts `unlock()` **on mount** (the Game is always reached via a click, so it usually already has user activation — making the first footstep audible) and again on the first input gesture as a fallback, and `dispose()`s it (closing the `AudioContext`) on unmount so contexts aren't orphaned across landing↔game navigation (browsers cap concurrent contexts). It exposes the engine so the game loop can fire one-shots. Mute/volume are **not** owned here — they live in the Tweaks state and the loop pushes them to the engine each frame.
+- **Wiring into the loop** — `useGame` receives the engine and calls it at the hook sites: `playOneShot('footstep' | 'waterstep')` after a successful `step()` (no sound on a wall bump — that early-returns), the breath gain + rate update once per frame, the weather-driven beds via `ensureBed`, the factory + growl schedulers in `updateAudio`, and the exit sting behind a false→true edge check (load-then-play). The render-side thunder fires from the `onLightning` seam where the lightning flash is decided. A `visibilitychange` handler pushes the idle-growl timers forward on tab refocus so returning to the tab isn't a jump-scare.
 
 ### Why a plain class, not just `use-sound`/Howler
 
@@ -93,7 +96,7 @@ A small, framework-agnostic **audio engine** (plain TS, Web Audio under the hood
 
 ### Loading strategy
 
-Decode-once, cache forever. On unlock the engine preloads only what the *default* (clear-weather) experience needs — footstep, the charting flourish, breath, and the wind bed. Everything Storm-only or opt-in lazy-loads on first use via the "no buffer yet? kick a load and skip this trigger" path in `playOneShot`/`startLoop`: rain + waterstep (Storm), the thunder claps (big files), the factory drone. `startLoop` retries each frame and the 1.5s fade-in masks a bed's decode latency. Assets live in `public/`, served as-is by URL — no bundler import. The library is ~27 MB on disk (mostly the music), but only a few hundred KB is eager.
+Decode-once, cache forever. On unlock the engine preloads only what the *default* (clear-weather) experience needs — footstep, the leaves bed, the growl (so the first scare isn't a silent decode gap), breath, and the wind bed. Everything Storm-only or opt-in lazy-loads on first use via the "no buffer yet? kick a load and skip this trigger" path in `playOneShot`/`startLoop`: rain + waterstep (Storm), the thunder claps (big files), the factory machines. The one exception to drop-on-miss is a **one-time event** like the exit sting, which passes `{ load: true }` so the trigger loads then plays once decoded instead of being lost (its edge can't re-fire). `startLoop` retries each frame and the 1.5s fade-in masks a bed's decode latency. Assets live in `public/`, served as-is by URL — no bundler import. The library is ~27 MB on disk (mostly the music), but only a few hundred KB is eager.
 
 The per-frame surface is kept cheap: the engine **change-gates** its loop calls — `setLoopGain`/`setVolume`/`setMuted` skip the work when the value hasn't moved, so the constant beds stop rescheduling a ramp 60×/sec (only breath, which modulates every frame, actually ramps). Loops also fade out on a **cancelable** timer rather than a source-scheduled stop, so a quick off→on re-toggle within the fade revives the same source instead of double-playing.
 
@@ -108,6 +111,7 @@ These slot into the same engine (`playOneShot` / a tension bed); only the *trigg
 
 ## Changelog
 
+- **v6 — 2026-06-09** — **Bug-fix pass + doc/code reconciliation.** Fixed a batch of real sound/music bugs: (1) the **exit victory sting never played** — it reuses the lazily-loaded `thunder4`, which in Clear weather is never decoded, so the one-time edge-detected `playOneShot` hit the "skip this trigger" path and was dropped forever; added a `{ load: true }` load-then-play path to `playOneShot` for one-time events. (2) Landing/in-game music **killed every other track** — the `ended` safety net re-fired `advance()` after a normal `timeupdate` crossfade; guarded it with `el === current` so only a genuinely stalled track advances. (3) Music **went permanently silent after one failed track** — the error-skip replacement never bound the end-of-track handlers; it does now. (4) `setLoopRate` is now **change-gated** like `setLoopGain` (idle breath no longer reschedules the rate ramp 60×/sec — closing the v5 gap). (5) Module-scope storm state is **reset when not storming**, so re-entering Storm no longer fires an instant flash + thunder off a stale past timer. (6) The **idle growl no longer jump-scares on tab refocus** (a `visibilitychange` handler pushes the idle timers forward). (7) A corrupted `dm.music.volume` localStorage value **no longer throws every fade tick** (NaN guard in `readNum`). (8) `AudioTweaks`' `VolSlider` was **defined in the render body** — a fresh component identity each render remounted every volume slider mid-drag (and tripped 15 lint errors); hoisted to module scope. (9) `useAudio` now **attempts unlock on mount** (the Game is reached via a click, so the first footstep is audible instead of dropped). Also reconciled this doc with the shipped code: the engine API is `startLoop`/`setLoopGain`/`setLoopRate`/`stopLoop` + `duck`/`setDistance`/`stopDistant` (not the never-existing `startBed`/`crossfadeBed`/`startBreath`); the **factory machines are sequenced one-shots on a distant low-pass+reverb bus**, not an ambient drone; the **growl** and **leaves bed** are documented; the score has **three** tracks (one was removed), not four; and the unbuilt **turn swish / charting flourish** and removed **bump** are marked not-implemented rather than wired.
 - **v5 — 2026-06-07** — Performance + lifecycle pass on the audio *code* (no design change): the engine change-gates its per-frame bed gain / mute / volume calls (constant beds no longer reschedule a ramp every frame); loops fade out on a cancelable timer so a quick re-toggle revives the same source instead of double-playing; the engine now `dispose()`s its `AudioContext` on unmount (was leaking one per landing↔game trip until the browser refused new ones). Preload trimmed to the default-weather set (footstep/charted/breath/wind) — rain + waterstep lazy-load in Storm. `useAudio` shed its dead mute/volume state (the loop owns that via Tweaks). Landing music: detach the first-gesture listeners once playback starts (was firing on every `pointermove`), and guard the crossfade against a `stop()` landing mid-`play()`. Shared `clamp01` (`lib/num.ts`) replaces the hand-inlined 0..1 clamps.
 - **v4 — 2026-06-07** — Removed the wall-bump sound (walking into a wall is now silent). Extended the background score to play **in-game too**, much quieter than on the landing (`soundMusic`/`musicVolume` tweaks, default ~18%), reusing the same shuffle bed as a separate quiet instance. Added volume tweaks for the remaining sounds without one — charting flourish, exit sting, and in-game music — so every sound now has a level control in the Audio panel.
 - **v3 — 2026-06-07** — Added landing-page background music: four cinematic tracks organized into `sounds/music/`, played as a sequential shuffle (random track → full play → ~4 s crossfade → another random track) via a separate streaming system (`LandingMusic` over `HTMLAudioElement`, not the buffer-based in-game engine — music is minutes-long stereo). Starts on the first gesture on the landing, fades out on the dive; a ♪ on/off toggle lives in the landing nav.
