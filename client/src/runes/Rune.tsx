@@ -4,7 +4,8 @@
 
 import type { CSSProperties, ReactElement } from 'react'
 import { DEFAULT_GLOW, chevron, glyph, glowFilter } from './glyphs'
-import type { Direction, GlowPalette, RuneIndex, RuneScript } from './glyphs'
+import type { GlowPalette } from './glyphs'
+import type { Direction, RuneIndex, RuneScript } from './geometry'
 
 export interface RuneProps {
   /** Which alphabet the rune belongs to. */

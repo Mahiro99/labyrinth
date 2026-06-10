@@ -39,6 +39,10 @@ interface Loop {
   // (re)apply — seeded on start and on revive — so a restarted bed always ramps once
   // instead of being skipped as "already at target".
   requested: number
+  // same change-gate for the playback rate (setLoopRate). The breath loop pushes a rate
+  // every frame; at rest it's a constant 1.0, so without this gate we'd cancel+re-ramp
+  // the rate AudioParam 60×/sec for no reason (the v5 per-frame-surface contract).
+  requestedRate: number
   // a pending teardown (fade-out then stop+dispose), kept cancelable so a quick
   // re-start within the fade can revive this source instead of spawning a second one.
   stopTimer: ReturnType<typeof setTimeout> | null
@@ -222,7 +226,11 @@ export class AudioEngine {
   // low-pass+reverb send, for far-off machines), or 'master' (bypass the duck, for the
   // growl so it isn't ducked by its own duck request). opts.duck (0..1) ducks the rest of
   // the mix for this clip's duration.
-  playOneShot(name: SoundName, opts: { gain?: number; rate?: number; out?: 'duck' | 'distant' | 'master'; duck?: number } = {}) {
+  // opts.load: for a ONE-TIME event (the exit sting) whose edge fires exactly once and
+  // can't re-fire, don't silently drop on a buffer miss — load the asset, then play it
+  // the moment it decodes (a sting ~200ms late beats a sting that never sounds). Repeating
+  // triggers (footsteps, strikes) leave it off and keep the cheap drop-on-miss behaviour.
+  playOneShot(name: SoundName, opts: { gain?: number; rate?: number; out?: 'duck' | 'distant' | 'master'; duck?: number; load?: boolean } = {}) {
     if (!this.unlocked || this._muted) {
       // dev-only breadcrumb: if movement is silent, this tells you WHY at a glance —
       // still locked (no successful unlock gesture) vs. muted. Remove once audio is happy.
@@ -232,9 +240,21 @@ export class AudioEngine {
       }
       return
     }
-    const def = defOf(name)
     const buf = this.buffers.get(name)
-    if (!buf) { void this.load(name); return } // not ready yet; skip this trigger
+    if (!buf) {
+      // not decoded yet. For a one-time event, load then play once; otherwise skip this
+      // trigger (a repeating one will land once the buffer is warm).
+      if (opts.load) void this.load(name).then((b) => { if (b && this.unlocked && !this._muted) this._spawnOneShot(name, b, opts) })
+      else void this.load(name)
+      return
+    }
+    this._spawnOneShot(name, buf, opts)
+  }
+
+  // Build + fire a single BufferSource for an already-decoded buffer. Split out of
+  // playOneShot so the load-then-play path (opts.load) can reuse it after a decode.
+  private _spawnOneShot(name: SoundName, buf: AudioBuffer, opts: { gain?: number; rate?: number; out?: 'duck' | 'distant' | 'master'; duck?: number }) {
+    const def = defOf(name)
     const ctx = this.ensureCtx()
     const src = ctx.createBufferSource()
     src.buffer = buf
@@ -278,7 +298,7 @@ export class AudioEngine {
       // revive a loop caught mid-fade-out: cancel its pending teardown and let the
       // next setLoopGain ramp it back up (its source was never stopped). A loop that
       // isn't fading out is already running — nothing to do.
-      if (existing.stopTimer) { clearTimeout(existing.stopTimer); existing.stopTimer = null; existing.requested = NaN }
+      if (existing.stopTimer) { clearTimeout(existing.stopTimer); existing.stopTimer = null; existing.requested = NaN; existing.requestedRate = NaN }
       return
     }
     const buf = this.buffers.get(name)
@@ -292,7 +312,7 @@ export class AudioEngine {
     src.connect(gain); gain.connect(this.duckBus!) // beds duck under the growl too
     src.start()
     gain.gain.linearRampToValueAtTime(target, ctx.currentTime + Math.max(0.001, fadeSec))
-    this.loops.set(name, { src, gain, target, requested: NaN, stopTimer: null })
+    this.loops.set(name, { src, gain, target, requested: NaN, requestedRate: NaN, stopTimer: null })
   }
 
   // Ramp a loop to a new gain (relative to nothing — absolute 0..1) over fadeSec.
@@ -318,6 +338,10 @@ export class AudioEngine {
     const loop = this.loops.get(name)
     if (!loop || !this.ctx) return
     const r = Math.max(0.5, Math.min(2.5, rate))
+    // change-gate like setLoopGain: skip the cancel+ramp when the rate hasn't moved, so
+    // an idling breath loop (constant rate 1.0) stops rescheduling the param every frame.
+    if (Math.abs(r - loop.requestedRate) < 1e-4) return
+    loop.requestedRate = r
     const t = this.ctx.currentTime
     const p = loop.src.playbackRate
     p.cancelScheduledValues(t)

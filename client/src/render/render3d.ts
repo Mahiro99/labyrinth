@@ -12,10 +12,10 @@
 
 import type { GameState, Tweaks } from '../types'
 import { hexToRgb, mix, rgba } from '../lib/color'
-import { theme } from '../theme'
 import { getWorld } from '../worlds'
 import { bugs, clouds, driftLeaves, grainTile, groundLife, pebbles, rain, splashes, spires, spores, stars } from './particles'
 import { QUANTITY, qty } from './quantity'
+import { tabletCanvas } from './runeCarve'
 
 // cheap deterministic hash -> 0..1 (for vine placement)
 function _h2(a: number, b: number): number { let t = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0; t = Math.imul(t ^ (t >>> 13), 1274126177); t ^= t >>> 16; return ((t >>> 0) % 100003) / 100003; }
@@ -181,6 +181,12 @@ export function drawFirstPerson(ctx: CanvasRenderingContext2D, gs: GameState, tw
         flash = Math.min(1, (f1 + f2)) * S.mag!; flashAz = S.az!;
       }
     }
+  } else if (_stormState) {
+    // not storming (weather/lightning off, or the Game unmounted): clear the module-scope
+    // state so the next storm re-applies the 1200ms initial grace. Without this, `S.next`
+    // is a timestamp now in the past, so the first storming frame fires an instant
+    // flash + thunder clap the moment Storm is re-entered, instead of after a natural gap.
+    _stormState = null;
   }
   const fcx = Math.cos(flashAz), fcy = Math.sin(flashAz);
 
@@ -608,6 +614,24 @@ function drawWalls(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       ctx.drawImage(t, sx, 0, 1, t.height, col, top, sliceW, lineH);
       const a = 1 - Ls;
       if (a > 0.003) { ctx.globalAlpha = a > 1 ? 1 : a; ctx.fillStyle = world.fogCss; ctx.fillRect(col, top, sliceW, lineH); ctx.globalAlpha = 1; }
+      // carved rune tablet on this face? (T-junction blind walls — engine/runes.ts).
+      // Drawn AFTER the fog shade at alpha ≈ light, so the carving emerges with the
+      // torch exactly like the stone it's cut into. (1 - u): the per-side u flips
+      // above make u run right→left on screen; the inscription must not mirror.
+      if (tw.runes) {
+        const face = side === 0 ? (stX > 0 ? 3 : 1) : (stY > 0 ? 0 : 2);
+        const tab = gs.runeField.tablets.get((mapY * GW + mapX) * 4 + face);
+        if (tab) {
+          const aT = Math.min(1, Ls * 1.18);
+          if (aT > 0.02) {
+            const pc = tabletCanvas(tab, gs.runeField.script, tw.runeGlow);
+            const px = Math.min(pc.width - 1, Math.max(0, ((1 - u) * pc.width) | 0));
+            ctx.globalAlpha = aT;
+            ctx.drawImage(pc, px, 0, 1, pc.height, col, top, sliceW, lineH);
+            ctx.globalAlpha = 1;
+          }
+        }
+      }
     }
 
     // ambient occlusion: contact shadow where the wall meets floor / ceiling

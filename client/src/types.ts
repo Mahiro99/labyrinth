@@ -17,9 +17,34 @@ export interface Maze {
   rows: number // cells
 }
 
+/** One rune group on a tablet: which branch it labels — relative to a viewer
+ *  facing the tablet — and the runes (indices into the day's script). */
+export interface TabletGroup {
+  dir: 'left' | 'right' | 'back'
+  runes: number[]
+}
+
+/** A carved inscription on a T-junction's blind wall (see engine/runes.ts).
+ *  `face`: which side of the wall tile carries it — 0=N 1=E 2=S 3=W. */
+export interface RuneTablet {
+  wallIdx: number // tile index of the wall tile that carries the carving
+  face: number
+  jx: number // the junction tile it speaks for
+  jy: number
+  seed: number // per-tablet jitter seed (chisel wobble, cracks, chips)
+  groups: TabletGroup[]
+}
+
+/** The day's rune carving layer: one script + every tablet, keyed wallIdx*4+face. */
+export interface RuneField {
+  script: 'geometric' | 'alchemical'
+  tablets: Map<number, RuneTablet>
+}
+
 /** Mutable per-run game state, owned by a ref and mutated by the rAF loop. */
 export interface GameState {
   maze: Maze
+  runeField: RuneField
   totalFloor: number
   px: number
   py: number
@@ -124,6 +149,8 @@ export interface Tweaks {
   grateAmt: number
   stainAmount: number
   crackAmount: number
+  runes: boolean        // carved rune tablets on T-junction blind walls
+  runeGlow: number      // ember inlay intensity inside the cuts (0 = bare stone … 1 = bright)
   markerColor: string
   torchRadius: number
   falloff: number

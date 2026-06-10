@@ -63,6 +63,9 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
       <TweakSection label="Walls" />
       <TweakSlider label="Staining" value={t.stainAmount} min={0} max={2} step={0.25} onChange={(v) => setTweak('stainAmount', v)} />
       <TweakSlider label="Cracks" value={t.crackAmount} min={0} max={2} step={0.25} onChange={(v) => setTweak('crackAmount', v)} />
+      {/* the rune tablets carved into T-junction blind walls (engine/runes.ts) */}
+      <TweakToggle label="Carved runes" value={t.runes} onChange={(v) => setTweak('runes', v)} />
+      {t.runes && <TweakSlider label="Rune ember" value={t.runeGlow} min={0} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('runeGlow', v)} />}
 
       <TweakSection label="Vines" />
       <TweakToggle label="Hanging vines" value={t.vines} onChange={(v) => setTweak('vines', v)} />

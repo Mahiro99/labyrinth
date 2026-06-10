@@ -59,6 +59,9 @@ export class LandingMusic {
     if (this.fails++ >= MUSIC_URLS.length) { this.started = false; return } // all tracks dead — give up, allow a future restart
     const repl = this.makeEl(this.pickIndex()) // pickIndex avoids lastIndex → a different track
     this.current = repl
+    this.bindEndOfTrack(repl) // CRUCIAL: the start()/advance() paths bind this; the error-skip
+    // path forgot to — without it the replacement plays once and nothing ever crossfades again,
+    // so the bed goes permanently silent after a single failed track (the case this path exists for).
     repl.play().then(() => {
       if (this.stopped || this.current !== repl) { this.release(repl); return }
       this.fails = 0
@@ -135,8 +138,12 @@ export class LandingMusic {
       }
     }
     el.addEventListener('timeupdate', onTime)
-    // safety net: if timeupdate stalls, still advance at 'ended'
-    el.addEventListener('ended', () => { if (!this.next) this.advance() }, { once: true })
+    // safety net: if timeupdate stalls, still advance at 'ended'. Guard on `el === current`:
+    // after a NORMAL crossfade the outgoing element is no longer `current` (advance() swapped
+    // in the next track), so its natural 'ended' — which lands ~right as the 4s fade finishes —
+    // must NOT advance again (that double-advance killed every other track after ~8s). Only a
+    // stalled track that never crossfaded is still `current` here, so the net still catches it.
+    el.addEventListener('ended', () => { if (el === this.current && !this.next) this.advance() }, { once: true })
   }
 
   // Start the next track and crossfade current → next.

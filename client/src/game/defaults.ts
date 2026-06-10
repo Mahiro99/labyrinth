@@ -48,6 +48,8 @@ export const TWEAK_DEFAULTS: Tweaks = {
   "grateAmt": 0.16,
   "stainAmount": 1,
   "crackAmount": 1,
+  "runes": true,
+  "runeGlow": 0.5,
   "markerColor": "#ff7a59",
   "torchRadius": 2,
   "falloff": 1.4,

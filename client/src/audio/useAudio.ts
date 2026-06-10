@@ -27,6 +27,12 @@ export function useAudio() {
     const detach = () => { for (const e of events) window.removeEventListener(e, unlock) }
     const unlock = () => { void engine.unlock().then(ok => { if (ok) detach() }) }
     for (const e of events) window.addEventListener(e, unlock, opts)
+    // try once on mount: the Game is always reached via a click (ENTER, or the click that
+    // set #game), so the document usually already has sticky user activation here — resuming
+    // now means the FIRST footstep is audible instead of dropped while the first keydown
+    // races an un-resumed context. Harmless if there's no activation yet (resume() no-ops,
+    // unlocked stays false, the gesture listeners above still cover it).
+    unlock()
     return () => { detach(); engine.dispose() }
   }, [engine])
 

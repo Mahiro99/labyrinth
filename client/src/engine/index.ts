@@ -4,3 +4,4 @@
 export { makeMaze, farthest } from './maze'
 export { computeLight } from './light'
 export { canStand } from './grid'
+export { computeRuneField } from './runes'

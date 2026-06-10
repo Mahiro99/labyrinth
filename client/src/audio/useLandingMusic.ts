@@ -11,7 +11,10 @@ const VOL_KEY = 'dm.music.volume'
 const OFF_KEY = 'dm.music.off'
 
 function readNum(key: string, dflt: number) {
-  try { const v = localStorage.getItem(key); return v == null ? dflt : Number(v) } catch { return dflt }
+  // Number('garbage') is NaN, which would survive clamp01 (NaN fails both comparisons) and
+  // reach HTMLMediaElement.volume — a non-finite assignment THROWS, aborting the fade
+  // interval before it can clear itself (timer leak + console spam every tick). Guard here.
+  try { const v = localStorage.getItem(key); if (v == null) return dflt; const n = Number(v); return Number.isFinite(n) ? n : dflt } catch { return dflt }
 }
 function readBool(key: string, dflt: boolean) {
   try { const v = localStorage.getItem(key); return v == null ? dflt : v === '1' } catch { return dflt }

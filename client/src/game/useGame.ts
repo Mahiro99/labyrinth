@@ -5,7 +5,7 @@
 // returned canvas refs and presentational state.
 
 import { useState, useRef, useEffect } from 'react'
-import { makeMaze, computeLight, canStand } from '../engine'
+import { makeMaze, computeLight, canStand, computeRuneField } from '../engine'
 import { drawFirstPerson, drawMinimap, onLightning } from '../render'
 import { THUNDERS, type SoundName } from '../audio'
 import { useTweaks } from '../tweaks'
@@ -170,7 +170,7 @@ export function useGame(audio?: AudioEngine) {
     exertionRef.current = Math.min(1, exertionRef.current + 0.10 + 0.22 * fast);
     const wasReached = gs.exitReached;
     if (tx === gs.maze.exit.x && ty === gs.maze.exit.y) gs.exitReached = true;
-    if (!wasReached && gs.exitReached) ae?.playOneShot('thunder4', { gain: tw.exitVolume }); // exit sting (edge-detected)
+    if (!wasReached && gs.exitReached) ae?.playOneShot('thunder4', { gain: tw.exitVolume, load: true }); // exit sting (edge-detected, one-time → load-then-play so it's never dropped)
     if (!movedRef.current) { movedRef.current = true; setHint(false); }
     return true;
   }
@@ -193,6 +193,8 @@ export function useGame(audio?: AudioEngine) {
     for (let i = 0; i < maze.tiles.length; i++) if (maze.tiles[i] === 0) totalFloor++;
     const gs: GameState = {
       maze, totalFloor,
+      runeField: computeRuneField(maze), // carved tablets on T-junction blind walls
+
       px: maze.start.x, py: maze.start.y,
       camx: maze.start.x, camy: maze.start.y,
       seen: new Uint8Array(maze.GW * maze.GH),
@@ -230,6 +232,21 @@ export function useGame(audio?: AudioEngine) {
   const keysRef = useKeyboard(onPress);
   // swipe on the canvas -> the same synthetic arrow keys (relative turn/move model)
   useTouch(canvasRef, onPress);
+
+  // tab visibility: rAF (and thus `now`) is frozen while the tab is hidden, but it
+  // resumes from a far-past `lastTileMove`/`lastGrowl`, so the first frame back would read
+  // "idle for the whole time away" and fire the loud growl on refocus. Push both timers to
+  // now when we become visible so returning to the tab isn't a jump-scare.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return;
+      const now = performance.now();
+      schedRef.current.lastTileMove = now;
+      schedRef.current.lastGrowl = now;
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   // thunder: subscribe to the renderer's lightning state machine. Each new bolt
   // fires a random thunder clap a beat later (so the boom lags the flash, as in
