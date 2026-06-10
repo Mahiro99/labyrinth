@@ -119,6 +119,9 @@ export function useGame(audio?: AudioEngine) {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const miniRef = useRef<HTMLCanvasElement | null>(null);
+  // low-res offscreen buffer the first-person view is rendered into when renderScale < 1,
+  // then upscaled onto the visible canvas (see the draw block in the rAF loop).
+  const fpBufRef = useRef<HTMLCanvasElement | null>(null);
   const gsRef = useRef<GameState | null>(null);
   const movedRef = useRef(false);
   // "exertion" 0..1 — rises with step cadence (fast stepping), decays when you pause;
@@ -271,12 +274,22 @@ export function useGame(audio?: AudioEngine) {
 
   // main loop
   useEffect(() => {
-    let raf: number, lastHud = 0;
+    let raf: number, lastHud = 0, lastTime = 0;
     const loop = () => {
       const now = performance.now();
+      // real elapsed time since the last frame, in 60Hz-frame units. Clamped so a stalled
+      // tab (rAF pauses → huge gap) doesn't teleport the camera on the frame it resumes.
+      const dt = lastTime ? now - lastTime : 1000 / 60;
+      lastTime = now;
+      const fr = Math.min(4, dt / (1000 / 60));
       const gs = gsRef.current;
       const tw = twRef.current;
       if (gs) {
+        // frame-rate-independent exponential smoothing. Each tween below used to ease by a
+        // fixed fraction k EVERY FRAME, so it resolved faster on a 144Hz screen than at 60Hz.
+        // damp(k) rewrites that as the equivalent decay over the real elapsed time `fr`, so
+        // the motion feels identical at any refresh rate (k is the original 60Hz fraction).
+        const damp = (k: number) => 1 - Math.pow(1 - (k < 0 ? 0 : k > 0.999 ? 0.999 : k), fr);
         // weather-driven beds + the exertion-tracking breath loop + master mute/volume,
         // pulled into updateAudio so this loop body stays readable (see audio.md).
         const ae = audioRef.current;
@@ -290,23 +303,30 @@ export function useGame(audio?: AudioEngine) {
         // facing tween (shortest angular path) for first-person
         let da = gs.faceTarget - gs.faceA;
         while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
-        gs.faceA += da * 0.22;
+        gs.faceA += da * damp(0.22);
         // turn sway: lean into the unresolved part of a turn (self-decays as faceA catches up)
         const swayTarget = Math.max(-1, Math.min(1, da * 1.6)) * (tw.sway ? tw.swayAmt : 0);
-        gs.swayRoll += (swayTarget - gs.swayRoll) * 0.25;
+        gs.swayRoll += (swayTarget - gs.swayRoll) * damp(0.25);
 
         // lighting: recompute the radial torch only when the radius changes
         if (gs.lastR !== tw.torchRadius) reveal(gs, now);
 
-        // camera tween
-        gs.camx += (gs.px - gs.camx) * tw.tweenSpeed;
-        gs.camy += (gs.py - gs.camy) * tw.tweenSpeed;
+        // camera tween — capture the pre-tween position so head-bob can advance on the ACTUAL
+        // distance the camera moved this frame, not the residual still-to-go (see below)
+        const pcx = gs.camx, pcy = gs.camy;
+        gs.camx += (gs.px - gs.camx) * damp(tw.tweenSpeed);
+        gs.camy += (gs.py - gs.camy) * damp(tw.tweenSpeed);
 
-        // head-bob: phase advances with how fast the camera is still travelling,
-        // amplitude eases in while moving and settles to 0 on arrival
+        // head-bob: phase advances with the REAL per-frame camera displacement (`moved`), which
+        // sums to the path length over a move and is therefore frame-rate independent — so the
+        // bob *frequency* (cycles per tile) is identical at 60Hz or 240Hz. (Driving it off the
+        // post-tween residual instead would make the bob speed up on high-refresh screens, since
+        // the residual sum balloons with frame count.) `moveAmt` (residual distance to target) is
+        // the right signal for the amplitude ease + "still moving" gate, so it keeps that role.
+        const moved = Math.hypot(gs.camx - pcx, gs.camy - pcy);
         const moveAmt = Math.hypot(gs.px - gs.camx, gs.py - gs.camy);
-        gs.bobPhase += moveAmt * 7.5;
-        gs.bobAmp += ((moveAmt > 0.015 ? 1 : 0) - gs.bobAmp) * 0.12;
+        gs.bobPhase += moved * 30; // 30 ≈ old 7.5 / default tween 0.2 → preserves the 60Hz bob feel
+        gs.bobAmp += ((moveAmt > 0.015 ? 1 : 0) - gs.bobAmp) * damp(0.12);
         gs.bobUnit = Math.sin(gs.bobPhase) * gs.bobAmp * (tw.headBob ? tw.bobAmt : 0);
 
         // size canvas + draw the first-person view
@@ -318,8 +338,28 @@ export function useGame(audio?: AudioEngine) {
           gs.cssW = cw; gs.cssH = ch;
           gs.tileSize = Math.max(20, Math.min(42, Math.round(Math.min(cw, ch) / 19)));
           const ctx = cv.getContext('2d') as CanvasRenderingContext2D;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawFirstPerson(ctx, gs, tw, now);
+          // renderScale < 1: rasterize the WHOLE first-person frame (walls + every atmospheric
+          // and post layer — they're all one drawFirstPerson call) into a smaller opaque buffer,
+          // then upscale-blit it to the visible canvas. Because every effect composites inside
+          // the buffer in its original logical cssW×cssH space, layer order and look are intact;
+          // only the final pixel resolution drops. The buffer is fully repainted each frame
+          // (drawFirstPerson's opening fog fillRect covers it), and the blit is opaque and
+          // covers the whole canvas, so there's no clear, no ghosting, no compositing change.
+          const scale = Math.max(0.4, Math.min(1, tw.renderScale ?? 1));
+          if (scale >= 0.999) {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            drawFirstPerson(ctx, gs, tw, now);
+          } else {
+            const buf = fpBufRef.current ?? (fpBufRef.current = document.createElement('canvas'));
+            const bw = Math.max(1, Math.round(cw * dpr * scale)), bh = Math.max(1, Math.round(ch * dpr * scale));
+            if (buf.width !== bw || buf.height !== bh) { buf.width = bw; buf.height = bh; }
+            const bctx = buf.getContext('2d') as CanvasRenderingContext2D;
+            bctx.setTransform(bw / cw, 0, 0, bh / ch, 0, 0); // keep drawing in logical cssW×cssH units
+            drawFirstPerson(bctx, gs, tw, now);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);              // blit in raw device pixels
+            ctx.imageSmoothingEnabled = true;                // bilinear upscale → soft, not blocky
+            ctx.drawImage(buf, 0, 0, bw, bh, 0, 0, cv.width, cv.height);
+          }
         }
 
         // minimap

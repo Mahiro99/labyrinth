@@ -107,6 +107,9 @@ export function GameTweaks({ t, setTweak }: { t: Tweaks; setTweak: (keyOrEdits: 
 
       <TweakSection label="Display" />
       <TweakToggle label="Personal minimap" value={t.showMinimap} onChange={(v) => setTweak('showMinimap', v)} />
+      {/* internal render resolution: <100% draws the first-person view at fewer pixels then
+          upscales it — fewer pixels to fill = higher frame rate, at a slight softness cost. */}
+      <TweakSlider label="Render quality" value={t.renderScale} min={0.5} max={1} step={0.05} format={asPercent} onChange={(v) => setTweak('renderScale', v)} />
     </TweaksPanel>
   );
 }

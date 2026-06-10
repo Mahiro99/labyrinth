@@ -55,6 +55,7 @@ export const TWEAK_DEFAULTS: Tweaks = {
   "falloff": 1.4,
   "tweenSpeed": 0.2,
   "showMinimap": true,
+  "renderScale": 1,
   "ao": true,
   "aoStrength": 0.65,
   "flicker": true,

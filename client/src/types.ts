@@ -156,6 +156,7 @@ export interface Tweaks {
   falloff: number
   tweenSpeed: number
   showMinimap: boolean
+  renderScale: number   // internal render resolution (0.5–1). <1 rasterizes the first-person view at fewer pixels then upscales — fewer pixels filled = faster, slightly softer.
   ao: boolean
   aoStrength: number
   flicker: boolean
